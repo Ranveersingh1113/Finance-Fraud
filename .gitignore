@@ -44,12 +44,20 @@ env/
 *.gpickle
 *.pkl
 *.pickle
+*.pdf
+
+# Data directories (exclude all data except structure)
+data/chroma_db/
+data/graphs/*.gpickle
+data/graphs/*.json
+data/sebi/*.pdf
+data/sebi/*.csv
+data/sebi/*.json
+data/ieee_cis/*.csv
+data/cases.db
 
 # HuggingFace cache
 huggingface_cache/
-
-# Chroma DB
-data/chroma_db/
 
 # Model files (large)
 *.bin
