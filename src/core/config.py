@@ -40,6 +40,16 @@ class Settings(BaseSettings):
         env="RERANKER_MODEL"
     )
     
+    # Device Configuration (GPU/CPU)
+    device: str = Field(
+        default="auto",  # 'auto', 'cuda', 'cpu', 'cuda:0', etc.
+        env="DEVICE"
+    )
+    use_fp16: bool = Field(
+        default=True,  # Use half precision for GPU to save memory
+        env="USE_FP16"
+    )
+    
     # HuggingFace Cache Configuration
     hf_home: str = Field(
         default=r"D:\huggingface_cache",

@@ -42,6 +42,11 @@ anthropic>=0.7.0
 FlagEmbedding>=1.2.0
 transformers>=4.36.0
 torch>=2.1.1
+
+# Vector similarity search - Choose one based on your hardware:
+# For GPU (recommended for better performance):
+# faiss-gpu>=1.7.4
+# For CPU only:
 faiss-cpu>=1.7.4
 
 # Optional: For fine-tuned embeddings (Model 4)

@@ -12,8 +12,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import pandas as pd
 try:
     from ..data.sebi_processor import ProcessedChunk
+    from .device_config import get_device_string, device_manager
 except ImportError:
     from data.sebi_processor import ProcessedChunk
+    from device_config import get_device_string, device_manager
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,11 @@ class BaselineRAGEngine:
     
     def __init__(self, persist_directory: str = "./data/chroma_db"):
         self.persist_directory = persist_directory
-        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2')
+        
+        # Initialize embedding model with GPU support
+        device = get_device_string()
+        logger.info(f"Initializing embedding model on device: {device}")
+        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=device)
         
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(

@@ -37,8 +37,10 @@ if not any([ANTHROPIC_AVAILABLE, OLLAMA_AVAILABLE]):
 
 try:
     from ..data.sebi_processor import ProcessedChunk
+    from .device_config import get_device_string, device_manager, is_cuda_available
 except ImportError:
     from data.sebi_processor import ProcessedChunk
+    from device_config import get_device_string, device_manager, is_cuda_available
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +86,15 @@ class AdvancedRAGEngine:
                  ollama_host: str = "http://localhost:11434"):
         self.persist_directory = persist_directory
         
-        # Initialize embedding model (upgrade to Fin-E5 when available)
-        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2')
+        # Initialize device
+        self.device = get_device_string()
+        logger.info(f"Advanced RAG Engine initializing on device: {self.device}")
+        
+        # Log GPU info if available
+        device_manager.log_device_info()
+        
+        # Initialize embedding model with GPU support (upgrade to Fin-E5 when available)
+        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=self.device)
         
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
@@ -157,12 +166,20 @@ class AdvancedRAGEngine:
         if not self.use_claude and not self.use_ollama:
             logger.warning("No LLM available. Using fallback response generation.")
         
-        # Initialize BGE Reranker (Model 3)
+        # Initialize BGE Reranker (Model 3) with GPU support
         if RERANKER_AVAILABLE:
             try:
-                self.reranker = FlagReranker('BAAI/bge-reranker-large', use_fp16=True)
+                # Use FP16 only on GPU for memory efficiency
+                use_fp16 = is_cuda_available()
+                reranker_device = 0 if is_cuda_available() else -1  # 0 for GPU, -1 for CPU
+                
+                self.reranker = FlagReranker(
+                    'BAAI/bge-reranker-large',
+                    use_fp16=use_fp16,
+                    device=reranker_device
+                )
                 self.use_reranker = True
-                logger.info("BGE Reranker initialized")
+                logger.info(f"BGE Reranker initialized on {'GPU' if is_cuda_available() else 'CPU'} (FP16: {use_fp16})")
             except Exception as e:
                 logger.warning(f"Failed to initialize BGE Reranker: {e}")
                 self.reranker = None
@@ -675,6 +692,9 @@ Keep your response clear, factual, well-structured, and cite specific examples f
             transaction_count = self.transaction_collection.count()
             sebi_count = self.sebi_collection.count()
             
+            # Get GPU memory info
+            gpu_info = device_manager.get_gpu_memory_info()
+            
             return {
                 'transaction_count': transaction_count,
                 'sebi_document_count': sebi_count,
@@ -690,6 +710,11 @@ Keep your response clear, factual, well-structured, and cite specific examples f
                     'multi_stage_retrieval': True,
                     'reranking': self.use_reranker,
                     'confidence_scoring': True
+                },
+                'device_info': {
+                    'device': device_manager.device_name,
+                    'using_gpu': is_cuda_available(),
+                    'gpu_memory': gpu_info
                 }
             }
         except Exception as e:
