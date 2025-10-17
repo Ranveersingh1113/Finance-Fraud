@@ -2,7 +2,8 @@
 Advanced FastAPI backend for the Financial Intelligence Platform.
 Phase 3 implementation with production-grade RAG engine and Ollama integration.
 """
-from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks, Security
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -20,6 +21,7 @@ sys.path.insert(0, str(project_root))
 
 from src.core.config import Settings
 from src.core.advanced_rag_engine import AdvancedRAGEngine
+from src.core.case_manager import CaseManager
 from src.data.ingestion import DataIngestion
 
 # Configure logging
@@ -28,6 +30,26 @@ logger = logging.getLogger(__name__)
 
 # Initialize settings
 settings = Settings()
+
+# API Key Security
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+# Valid API keys (in production, use database or environment variables)
+VALID_API_KEYS = {
+    settings.api_key,  # From config/env
+    "dev-api-key",     # Development key
+    "analyst-key-001"  # Analyst key
+}
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    """Validate API key for secured endpoints."""
+    if api_key in VALID_API_KEYS:
+        return api_key
+    raise HTTPException(
+        status_code=403,
+        detail="Invalid or missing API key"
+    )
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -48,6 +70,7 @@ app.add_middleware(
 # Global instances
 rag_engine = None
 data_ingestion = None
+case_manager = None
 
 
 class QueryRequest(BaseModel):
@@ -98,7 +121,7 @@ class CaseResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the application on startup."""
-    global rag_engine, data_ingestion
+    global rag_engine, data_ingestion, case_manager
     
     try:
         logger.info("Initializing Advanced Financial Intelligence Platform...")
@@ -111,6 +134,10 @@ async def startup_event():
         )
         
         data_ingestion = DataIngestion()
+        
+        # Initialize case manager
+        case_manager = CaseManager(db_path="./data/cases.db")
+        logger.info("Case manager initialized")
         
         # Load existing SEBI data
         logger.info("Loading SEBI data...")
@@ -163,12 +190,15 @@ async def health_check():
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query_rag_engine(request: QueryRequest):
+async def query_rag_engine(request: QueryRequest, api_key: str = Depends(get_api_key)):
     """
     Query the advanced RAG engine with Ollama-powered generation.
     
+    Requires API key authentication.
+    
     Args:
         request: Query request with parameters
+        api_key: API key for authentication
         
     Returns:
         Comprehensive response with answer, evidence, and metadata
@@ -243,60 +273,87 @@ async def simple_query(
 
 
 @app.post("/cases", response_model=CaseResponse)
-async def create_case(request: CaseRequest, background_tasks: BackgroundTasks):
+async def create_case(request: CaseRequest, background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
     """
     Create a new investigation case.
+    
+    Requires API key authentication.
     
     Args:
         request: Case creation request
         background_tasks: FastAPI background tasks
+        api_key: API key for authentication
         
     Returns:
         Case creation response
     """
     try:
-        # TODO: Implement actual case storage (JSON/SQLite)
-        # For now, just return a mock response
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        # Create case in database
+        case_data = case_manager.create_case(
+            case_id=request.case_id,
+            description=request.description,
+            priority=request.priority,
+            analyst=request.analyst,
+            tags=request.tags
+        )
         
         background_tasks.add_task(log_case_creation, request.case_id, request.description)
         
         return CaseResponse(
-            case_id=request.case_id,
+            case_id=case_data['case_id'],
             status="created",
-            created_at=datetime.now().isoformat(),
+            created_at=case_data['created_at'],
             message=f"Case {request.case_id} created successfully"
         )
         
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Case creation error: {e}")
         raise HTTPException(status_code=500, detail=f"Case creation failed: {str(e)}")
 
 
 @app.get("/cases/{case_id}")
-async def get_case(case_id: str):
-    """Get case details."""
+async def get_case(case_id: str, api_key: str = Depends(get_api_key)):
+    """Get case details. Requires API key authentication."""
     try:
-        # TODO: Implement actual case retrieval
-        return {
-            "case_id": case_id,
-            "status": "active",
-            "created_at": datetime.now().isoformat(),
-            "message": "Case retrieval not yet implemented"
-        }
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
         
+        case_data = case_manager.get_case(case_id)
+        
+        if not case_data:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+        
+        # Get associated queries
+        queries = case_manager.get_case_queries(case_id)
+        case_data['queries'] = queries
+        case_data['query_count'] = len(queries)
+        
+        return case_data
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Case retrieval error: {e}")
         raise HTTPException(status_code=500, detail=f"Case retrieval failed: {str(e)}")
 
 
 @app.post("/cases/{case_id}/analyze")
-async def analyze_case(case_id: str, query: str = Query(..., description="Analysis query")):
+async def analyze_case(case_id: str, query: str = Query(..., description="Analysis query"), 
+                      api_key: str = Depends(get_api_key)):
     """
     Analyze a case using the RAG engine.
+    
+    Requires API key authentication.
     
     Args:
         case_id: Case identifier
         query: Analysis query
+        api_key: API key for authentication
         
     Returns:
         Analysis results
@@ -304,9 +361,38 @@ async def analyze_case(case_id: str, query: str = Query(..., description="Analys
     try:
         if not rag_engine:
             raise HTTPException(status_code=500, detail="RAG engine not initialized")
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        # Verify case exists
+        case_data = case_manager.get_case(case_id)
+        if not case_data:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
         
         # Perform analysis
         rag_response = await rag_engine.query(query, n_results=10)
+        
+        # Save query to case
+        evidence_list = [
+            {
+                'rank': i + 1,
+                'score': result.final_score or result.similarity_score,
+                'document': result.document[:500],
+                'source': result.source,
+                'metadata': result.metadata
+            }
+            for i, result in enumerate(rag_response.evidence)
+        ]
+        
+        case_manager.add_query_to_case(
+            case_id=case_id,
+            query=query,
+            answer=rag_response.answer,
+            confidence_score=rag_response.confidence_score,
+            query_type=rag_response.query_type,
+            processing_time=rag_response.processing_time,
+            evidence=evidence_list
+        )
         
         return {
             "case_id": case_id,
@@ -314,12 +400,144 @@ async def analyze_case(case_id: str, query: str = Query(..., description="Analys
             "analysis": rag_response.answer,
             "confidence": rag_response.confidence_score,
             "evidence_count": len(rag_response.evidence),
-            "query_type": rag_response.query_type
+            "query_type": rag_response.query_type,
+            "processing_time": rag_response.processing_time
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Case analysis error: {e}")
         raise HTTPException(status_code=500, detail=f"Case analysis failed: {str(e)}")
+
+
+@app.get("/cases")
+async def list_cases(status: Optional[str] = None, api_key: str = Depends(get_api_key)):
+    """List all cases, optionally filtered by status. Requires API key authentication."""
+    try:
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        cases = case_manager.list_cases(status=status)
+        return {
+            "cases": cases,
+            "count": len(cases),
+            "filter": status
+        }
+        
+    except Exception as e:
+        logger.error(f"List cases error: {e}")
+        raise HTTPException(status_code=500, detail=f"List cases failed: {str(e)}")
+
+
+@app.delete("/cases/{case_id}")
+async def delete_case(case_id: str, api_key: str = Depends(get_api_key)):
+    """Delete a case. Requires API key authentication."""
+    try:
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        success = case_manager.delete_case(case_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found or deletion failed")
+        
+        return {
+            "case_id": case_id,
+            "status": "deleted",
+            "message": f"Case {case_id} deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Delete case error: {e}")
+        raise HTTPException(status_code=500, detail=f"Case deletion failed: {str(e)}")
+
+
+@app.post("/cases/{case_id}/sar")
+async def generate_sar(case_id: str, api_key: str = Depends(get_api_key)):
+    """Generate SAR (Suspicious Activity Report) for a case. Requires API key authentication."""
+    try:
+        if not rag_engine:
+            raise HTTPException(status_code=500, detail="RAG engine not initialized")
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        # Get case data
+        case_data = case_manager.get_case(case_id)
+        if not case_data:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
+        
+        # Get case queries for context
+        queries = case_manager.get_case_queries(case_id)
+        
+        # Generate comprehensive SAR using RAG
+        sar_query = f"""Generate a comprehensive Suspicious Activity Report (SAR) for the following case:
+        
+Case ID: {case_id}
+Description: {case_data['description']}
+Priority: {case_data['priority']}
+Analyst: {case_data['analyst']}
+
+The SAR should include:
+1. Executive Summary
+2. Case Overview
+3. Key Findings and Evidence
+4. Patterns and Red Flags Identified
+5. Supporting Documentation
+6. Recommendations for Further Action
+7. Conclusion
+
+Previous Analysis Queries: {len(queries)} queries performed
+Latest Query Results: {queries[0]['answer'][:200] if queries else 'No previous queries'}
+
+Please provide a detailed, professional SAR suitable for regulatory submission."""
+        
+        rag_response = await rag_engine.query(sar_query, n_results=15)
+        
+        # Save SAR to database
+        sar_id = case_manager.save_sar_report(
+            case_id=case_id,
+            report_content=rag_response.answer,
+            analyst=case_data['analyst'],
+            status='draft'
+        )
+        
+        return {
+            "case_id": case_id,
+            "sar_id": sar_id,
+            "report_content": rag_response.answer,
+            "confidence": rag_response.confidence_score,
+            "generated_at": datetime.now().isoformat(),
+            "status": "draft"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SAR generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"SAR generation failed: {str(e)}")
+
+
+@app.get("/cases/{case_id}/sar")
+async def get_sar_reports(case_id: str, api_key: str = Depends(get_api_key)):
+    """Get all SAR reports for a case. Requires API key authentication."""
+    try:
+        if not case_manager:
+            raise HTTPException(status_code=500, detail="Case manager not initialized")
+        
+        reports = case_manager.get_sar_reports(case_id)
+        
+        return {
+            "case_id": case_id,
+            "reports": reports,
+            "count": len(reports)
+        }
+        
+    except Exception as e:
+        logger.error(f"Get SAR reports error: {e}")
+        raise HTTPException(status_code=500, detail=f"Get SAR reports failed: {str(e)}")
 
 
 @app.get("/stats")
@@ -330,6 +548,12 @@ async def get_system_stats():
             raise HTTPException(status_code=500, detail="RAG engine not initialized")
         
         stats = rag_engine.get_advanced_stats()
+        
+        # Add case statistics if case_manager is available
+        if case_manager:
+            case_stats = case_manager.get_case_statistics()
+            stats['case_statistics'] = case_stats
+        
         return {
             "system_status": "operational",
             "rag_engine_stats": stats,

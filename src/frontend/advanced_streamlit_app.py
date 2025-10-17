@@ -23,6 +23,7 @@ st.set_page_config(
 
 # API Configuration
 API_BASE_URL = "http://localhost:8001"  # Advanced API Server
+API_KEY = "dev-api-key"  # Default API key for development
 
 # Initialize session state
 if 'cases' not in st.session_state:
@@ -31,19 +32,24 @@ if 'current_case' not in st.session_state:
     st.session_state.current_case = None
 if 'query_history' not in st.session_state:
     st.session_state.query_history = []
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = API_KEY
 
 
 def make_api_request(endpoint: str, params: Dict = None, data: Dict = None, method: str = "GET") -> Dict:
-    """Make API request to the advanced backend."""
+    """Make API request to the advanced backend with API key authentication."""
     try:
         url = f"{API_BASE_URL}{endpoint}"
+        headers = {"X-API-Key": st.session_state.api_key}
         
         if method == "POST":
-            response = requests.post(url, json=data, timeout=120)
+            response = requests.post(url, json=data, headers=headers, timeout=120)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers, timeout=30)
         elif method == "GET":
-            response = requests.get(url, params=params or {}, timeout=30)
+            response = requests.get(url, params=params or {}, headers=headers, timeout=30)
         else:
-            response = requests.request(method, url, json=data, params=params, timeout=30)
+            response = requests.request(method, url, json=data, params=params, headers=headers, timeout=30)
         
         response.raise_for_status()
         return response.json()
@@ -148,6 +154,14 @@ def create_case():
                     st.error("❌ Failed to create case")
 
 
+def load_cases_from_api():
+    """Load cases from API."""
+    result = make_api_request("/cases")
+    if result and 'cases' in result:
+        return result['cases']
+    return []
+
+
 def display_case_management():
     """Display case management interface."""
     st.header("📁 Case Management")
@@ -155,55 +169,81 @@ def display_case_management():
     # Create new case
     create_case()
     
+    # Load cases from API
+    cases = load_cases_from_api()
+    
     # Display existing cases
-    if st.session_state.cases:
+    if cases:
         st.subheader("📋 Active Cases")
         
         # Case selection
-        case_options = {f"{case_id} - {data['description'][:50]}...": case_id 
-                       for case_id, data in st.session_state.cases.items()}
+        case_options = {f"{case['case_id']} - {case['description'][:50]}...": case['case_id'] 
+                       for case in cases}
         
         if case_options:
             selected_case = st.selectbox(
                 "Select Case",
                 options=list(case_options.keys()),
-                index=0 if not st.session_state.current_case else list(case_options.values()).index(st.session_state.current_case)
+                index=0
             )
             
             if selected_case:
                 case_id = case_options[selected_case]
                 st.session_state.current_case = case_id
                 
-                # Display case details
-                case_data = st.session_state.cases[case_id]
+                # Get detailed case data from API
+                case_result = make_api_request(f"/cases/{case_id}")
                 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Case ID", case_id)
-                with col2:
-                    st.metric("Priority", case_data['priority'].upper())
-                with col3:
-                    st.metric("Analyst", case_data['analyst'])
-                with col4:
-                    st.metric("Queries", len(case_data.get('queries', [])))
-                
-                # Case actions
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button("🔍 Analyze Case", use_container_width=True):
-                        st.session_state.active_tab = "analysis"
-                        st.rerun()
-                with col2:
-                    if st.button("📊 Generate Report", use_container_width=True):
-                        st.session_state.active_tab = "reporting"
-                        st.rerun()
-                with col3:
-                    if st.button("🗑️ Delete Case", use_container_width=True):
-                        if case_id in st.session_state.cases:
-                            del st.session_state.cases[case_id]
-                            if st.session_state.current_case == case_id:
-                                st.session_state.current_case = None
+                if case_result:
+                    case_data = case_result
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Case ID", case_id)
+                    with col2:
+                        st.metric("Priority", case_data.get('priority', 'N/A').upper())
+                    with col3:
+                        st.metric("Analyst", case_data.get('analyst', 'N/A'))
+                    with col4:
+                        st.metric("Queries", case_data.get('query_count', 0))
+                    
+                    # Display case details
+                    with st.expander("📋 Case Details", expanded=True):
+                        st.write(f"**Description:** {case_data.get('description', 'N/A')}")
+                        st.write(f"**Status:** {case_data.get('status', 'N/A')}")
+                        st.write(f"**Created:** {case_data.get('created_at', 'N/A')}")
+                        st.write(f"**Tags:** {', '.join(case_data.get('tags', []))}")
+                    
+                    # Display query history
+                    if case_data.get('queries'):
+                        with st.expander(f"📜 Query History ({len(case_data['queries'])} queries)", expanded=False):
+                            for query in case_data['queries']:
+                                st.markdown(f"**Query:** {query.get('query', 'N/A')}")
+                                st.markdown(f"**Confidence:** {query.get('confidence_score', 0):.3f}")
+                                st.markdown(f"**Time:** {query.get('timestamp', 'N/A')}")
+                                st.divider()
+                    
+                    # Case actions
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("🔍 Analyze Case", use_container_width=True):
+                            st.session_state.active_tab = "search"
                             st.rerun()
+                    with col2:
+                        if st.button("📊 Generate SAR", use_container_width=True):
+                            st.session_state.active_tab = "sar"
+                            st.rerun()
+                    with col3:
+                        if st.button("🗑️ Delete Case", use_container_width=True, type="secondary"):
+                            # Delete case via API
+                            delete_result = make_api_request(f"/cases/{case_id}", method="DELETE")
+                            if delete_result:
+                                st.success(f"✅ {delete_result.get('message', 'Case deleted')}")
+                                st.session_state.current_case = None
+                                time.sleep(1)
+                                st.rerun()
+    else:
+        st.info("📝 No cases found. Create a new case to get started!")
 
 
 def display_advanced_search():
@@ -279,33 +319,88 @@ def display_rag_response(result: Dict, query: str, processing_time: float):
     
     # Evidence with clickable citations
     if result.get('evidence'):
-        st.subheader("📚 Supporting Evidence")
+        st.subheader("📚 Supporting Evidence & Citations")
+        
+        # Create citation reference list
+        st.markdown("**Quick Citation Links:**")
+        citation_cols = st.columns(min(len(result['evidence']), 5))
+        for i, evidence in enumerate(result['evidence'][:5]):
+            with citation_cols[i]:
+                if st.button(f"[{i+1}]", key=f"cite_link_{i}", help=f"Jump to Evidence {i+1}"):
+                    st.session_state[f'expanded_evidence_{i}'] = True
+        
+        st.divider()
         
         for i, evidence in enumerate(result['evidence']):
-            with st.expander(f"Evidence {i+1} (Score: {evidence.get('score', 0):.3f}) - {evidence.get('source', 'Unknown')}"):
-                # Display document with highlighting
-                st.markdown(f"**Source:** {evidence.get('source', 'Unknown')}")
-                st.markdown(f"**Rank:** {evidence.get('rank', i+1)}")
+            # Determine if this evidence should be expanded
+            is_expanded = st.session_state.get(f'expanded_evidence_{i}', i == 0)
+            
+            # Create enhanced evidence card
+            with st.expander(
+                f"📄 Evidence [{i+1}] - Relevance: {evidence.get('score', 0):.1%} - Source: {evidence.get('source', 'Unknown').replace('_', ' ').title()}", 
+                expanded=is_expanded
+            ):
+                # Source attribution
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    source_type = evidence.get('source', 'unknown')
+                    if 'sebi' in source_type.lower():
+                        st.markdown("🏛️ **Source:** SEBI Regulatory Document")
+                    elif 'transaction' in source_type.lower():
+                        st.markdown("💳 **Source:** Transaction Data")
+                    else:
+                        st.markdown(f"📂 **Source:** {source_type}")
+                with col2:
+                    st.markdown(f"**Rank:** #{evidence.get('rank', i+1)}")
+                with col3:
+                    st.markdown(f"**Score:** {evidence.get('score', 0):.3f}")
                 
-                # Document content
-                st.markdown("**Content:**")
-                st.text_area(
-                    f"Document {i+1}",
-                    value=evidence.get('document', ''),
-                    height=200,
-                    key=f"evidence_{i}",
-                    disabled=True
-                )
+                # Document content in a highlighted box
+                st.markdown("**📝 Evidence Content:**")
+                st.info(evidence.get('document', 'No content available'))
                 
-                # Metadata
+                # Metadata in structured format
                 if evidence.get('metadata'):
-                    st.markdown("**Metadata:**")
-                    metadata_df = pd.DataFrame([evidence['metadata']])
-                    st.dataframe(metadata_df, use_container_width=True)
+                    st.markdown("**🔍 Document Metadata:**")
+                    metadata = evidence['metadata']
+                    
+                    # Display key metadata fields
+                    meta_col1, meta_col2 = st.columns(2)
+                    
+                    with meta_col1:
+                        if metadata.get('title'):
+                            st.markdown(f"**Title:** {metadata['title']}")
+                        if metadata.get('document_type'):
+                            st.markdown(f"**Type:** {metadata['document_type']}")
+                        if metadata.get('violation_types'):
+                            st.markdown(f"**Violations:** {metadata['violation_types']}")
+                    
+                    with meta_col2:
+                        if metadata.get('date'):
+                            st.markdown(f"**Date:** {metadata['date']}")
+                        if metadata.get('entities'):
+                            st.markdown(f"**Entities:** {metadata['entities']}")
+                        if metadata.get('keywords'):
+                            st.markdown(f"**Keywords:** {metadata['keywords']}")
+                    
+                    # Full metadata expander
+                    with st.expander("View Full Metadata", expanded=False):
+                        st.json(metadata)
                 
-                # Clickable citation
-                if st.button(f"🔗 View Full Document {i+1}", key=f"view_doc_{i}"):
-                    st.info(f"🔗 Citation: This evidence is from {evidence.get('source', 'Unknown')} document")
+                # Citation action buttons
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button(f"📋 Copy Citation", key=f"copy_{i}", use_container_width=True):
+                        citation_text = f"[{i+1}] {evidence.get('source', 'Unknown')} - Score: {evidence.get('score', 0):.3f}"
+                        st.code(citation_text, language=None)
+                with col2:
+                    if st.button(f"🔗 Trace Source", key=f"trace_{i}", use_container_width=True):
+                        st.success(f"✅ Source traced: {evidence.get('source', 'Unknown')}")
+                with col3:
+                    if metadata.get('url'):
+                        st.link_button(f"🌐 View Original", metadata['url'], use_container_width=True)
+                    else:
+                        st.button(f"🌐 View Original", disabled=True, use_container_width=True)
 
 
 def display_analytics_dashboard():
@@ -317,8 +412,10 @@ def display_analytics_dashboard():
     
     if stats_data and stats_data.get('rag_engine_stats'):
         stats = stats_data['rag_engine_stats']
+        case_stats = stats.get('case_statistics', {})
         
-        # Key metrics
+        # Key System Metrics
+        st.subheader("🎯 System Performance Metrics")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -328,7 +425,41 @@ def display_analytics_dashboard():
         with col3:
             st.metric("Transaction Records", stats.get('transaction_count', 0))
         with col4:
-            st.metric("Active Cases", len(st.session_state.cases))
+            st.metric("Total Cases", case_stats.get('total_cases', 0))
+        
+        # Case Management Metrics
+        if case_stats:
+            st.subheader("📁 Case Management Metrics")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Active Cases", case_stats.get('active_cases', 0), 
+                         delta=None, delta_color="normal")
+            with col2:
+                st.metric("Closed Cases", case_stats.get('closed_cases', 0))
+            with col3:
+                st.metric("Total Queries", case_stats.get('total_queries', 0))
+            with col4:
+                avg_queries = case_stats.get('average_queries_per_case', 0)
+                st.metric("Avg Queries/Case", f"{avg_queries:.1f}")
+            
+            # Priority breakdown
+            if case_stats.get('priority_breakdown'):
+                st.subheader("⚡ Case Priority Distribution")
+                priority_data = case_stats['priority_breakdown']
+                
+                # Create pie chart
+                fig_priority = go.Figure(data=[go.Pie(
+                    labels=list(priority_data.keys()),
+                    values=list(priority_data.values()),
+                    hole=0.3,
+                    marker=dict(colors=['#FF6B6B', '#FFA500', '#FFD700', '#90EE90'])
+                )])
+                fig_priority.update_layout(
+                    title="Cases by Priority Level",
+                    height=400
+                )
+                st.plotly_chart(fig_priority, use_container_width=True)
         
         # Query performance analytics
         if st.session_state.query_history:
@@ -397,61 +528,85 @@ def display_sar_generation():
         st.warning("⚠️ Please select a case first to generate SAR")
         return
     
-    case_data = st.session_state.cases[st.session_state.current_case]
+    case_id = st.session_state.current_case
     
-    st.subheader(f"SAR Generation for Case: {st.session_state.current_case}")
+    # Get case data from API
+    case_result = make_api_request(f"/cases/{case_id}")
     
-    # SAR template
-    with st.expander("📋 SAR Template", expanded=True):
-        st.markdown("""
-        ### Suspicious Activity Report (SAR) Template
-        
-        **Case Information:**
-        - Case ID: {case_id}
-        - Analyst: {analyst}
-        - Priority: {priority}
-        - Description: {description}
-        
-        **Investigation Summary:**
-        [AI-generated summary based on case analysis]
-        
-        **Key Findings:**
-        [AI-generated findings from queries and analysis]
-        
-        **Supporting Evidence:**
-        [AI-generated evidence compilation]
-        
-        **Recommendations:**
-        [AI-generated recommendations]
-        """)
+    if not case_result:
+        st.error("❌ Failed to load case data")
+        return
     
-    # Generate SAR
-    if st.button("🤖 Generate SAR with AI", use_container_width=True):
-        with st.spinner("🤖 Generating SAR with AI analysis..."):
-            # This would integrate with the API to generate comprehensive SAR
-            sar_query = f"Generate a comprehensive SAR for case {st.session_state.current_case}. " \
-                       f"Case description: {case_data['description']}. " \
-                       f"Priority: {case_data['priority']}. " \
-                       f"Include investigation summary, key findings, supporting evidence, and recommendations."
-            
-            sar_data = {
-                "query": sar_query,
-                "n_results": 10,
-                "include_metadata": True
-            }
-            
-            result = make_api_request("/query", data=sar_data, method="POST")
-            
-            if result and result.get('answer'):
-                st.subheader("🤖 AI-Generated SAR")
-                st.markdown(result['answer'])
+    case_data = case_result
+    
+    st.subheader(f"SAR Generation for Case: {case_id}")
+    
+    # Display case summary
+    with st.expander("📋 Case Summary", expanded=True):
+        st.write(f"**Case ID:** {case_id}")
+        st.write(f"**Description:** {case_data.get('description', 'N/A')}")
+        st.write(f"**Priority:** {case_data.get('priority', 'N/A')}")
+        st.write(f"**Analyst:** {case_data.get('analyst', 'N/A')}")
+        st.write(f"**Status:** {case_data.get('status', 'N/A')}")
+        st.write(f"**Queries Performed:** {case_data.get('query_count', 0)}")
+    
+    # Load existing SAR reports
+    sar_reports_result = make_api_request(f"/cases/{case_id}/sar")
+    existing_reports = sar_reports_result.get('reports', []) if sar_reports_result else []
+    
+    # Display existing reports
+    if existing_reports:
+        st.subheader(f"📄 Existing SAR Reports ({len(existing_reports)})")
+        
+        for i, report in enumerate(existing_reports):
+            with st.expander(f"Report #{i+1} - {report.get('status', 'draft').upper()} - {report.get('generated_at', 'N/A')[:16]}", expanded=False):
+                st.markdown(report.get('report_content', 'No content'))
+                st.write(f"**Generated by:** {report.get('analyst', 'N/A')}")
+                st.write(f"**Status:** {report.get('status', 'draft')}")
+    
+    st.divider()
+    
+    # Generate new SAR
+    st.subheader("🤖 Generate New SAR")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        if st.button("🤖 Generate SAR with AI", use_container_width=True, type="primary"):
+            with st.spinner("🤖 Generating comprehensive SAR with AI analysis... This may take a minute."):
+                # Call SAR generation API endpoint
+                sar_result = make_api_request(f"/cases/{case_id}/sar", method="POST")
                 
-                # Save SAR
-                if st.button("💾 Save SAR"):
-                    # This would save to file or database
-                    st.success("✅ SAR saved successfully!")
-            else:
-                st.error("❌ Failed to generate SAR")
+                if sar_result and sar_result.get('report_content'):
+                    st.success("✅ SAR Generated Successfully!")
+                    
+                    st.subheader("🤖 AI-Generated SAR Report")
+                    st.markdown("---")
+                    st.markdown(sar_result['report_content'])
+                    st.markdown("---")
+                    
+                    # Display metadata
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Confidence", f"{sar_result.get('confidence', 0):.3f}")
+                    with col2:
+                        st.metric("SAR ID", sar_result.get('sar_id', 'N/A'))
+                    with col3:
+                        st.metric("Status", sar_result.get('status', 'draft').upper())
+                    
+                    # Download option
+                    st.download_button(
+                        label="💾 Download SAR Report",
+                        data=sar_result['report_content'],
+                        file_name=f"SAR_{case_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("❌ Failed to generate SAR")
+    
+    with col2:
+        st.info("💡 **Tip:** The AI will analyze all case queries and evidence to generate a comprehensive SAR report.")
 
 
 def main():

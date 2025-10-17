@@ -40,6 +40,16 @@ class Settings(BaseSettings):
         env="RERANKER_MODEL"
     )
     
+    # HuggingFace Cache Configuration
+    hf_home: str = Field(
+        default=r"D:\huggingface_cache",
+        env="HF_HOME"
+    )
+    transformers_cache: str = Field(
+        default=r"D:\huggingface_cache",
+        env="TRANSFORMERS_CACHE"
+    )
+    
     # Data Paths
     data_directory: str = Field(default="./data", env="DATA_DIRECTORY")
     ieee_cis_data_path: str = Field(
@@ -85,6 +95,12 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
+        # Set HuggingFace environment variables
+        os.environ['HF_HOME'] = self.hf_home
+        os.environ['TRANSFORMERS_CACHE'] = self.transformers_cache
+        os.environ['HF_DATASETS_CACHE'] = self.transformers_cache
+        
         # Ensure data directories exist
         Path(self.data_directory).mkdir(parents=True, exist_ok=True)
         Path(self.chroma_persist_directory).mkdir(parents=True, exist_ok=True)
