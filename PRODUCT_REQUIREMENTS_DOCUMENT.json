@@ -1,0 +1,2167 @@
+{
+  "product_requirements_document": {
+    "metadata": {
+      "product_name": "Financial Intelligence Platform",
+      "version": "2.0.0",
+      "document_version": "1.0",
+      "last_updated": "2025-10-17",
+      "authors": ["Product Team"],
+      "status": "Active Development - Phase 3 Complete (50% Overall)",
+      "classification": "Dual-Audience Platform"
+    },
+    
+    "executive_summary": {
+      "product_vision": "A state-of-the-art, dual-audience financial intelligence platform that revolutionizes fraud detection through advanced AI technologies, serving both professional financial analysts and individual consumers.",
+      "mission_statement": "To democratize financial fraud detection by providing institutional-grade AI-powered analysis tools to financial professionals while empowering consumers with accessible personal security solutions.",
+      "value_proposition": [
+        "Next-generation fraud detection using GraphRAG (Retrieval-Augmented Generation with Knowledge Graphs)",
+        "Local-first architecture ensuring data privacy and sovereignty",
+        "Dual-audience approach serving both analysts and consumers",
+        "Production-grade AI models with 95%+ accuracy",
+        "Real-time analysis with sub-second response times"
+      ],
+      "target_users": [
+        "Financial fraud analysts and investigators",
+        "Regulatory compliance officers (SEBI, RBI)",
+        "Financial institutions and banks",
+        "Individual consumers seeking fraud protection",
+        "Cybersecurity professionals"
+      ],
+      "key_differentiators": [
+        "GraphRAG technology for relationship-aware intelligence",
+        "Ollama integration for local LLM deployment (privacy-first)",
+        "Multi-stage retrieval with BGE reranking",
+        "Automated SAR (Suspicious Activity Report) generation",
+        "Interactive network visualization of fraud patterns",
+        "Zero-cost deployment on free platforms"
+      ]
+    },
+    
+    "product_objectives": {
+      "primary_goals": [
+        {
+          "goal": "Reduce fraud investigation time by 70%",
+          "metric": "Average time from case creation to SAR generation",
+          "target": "< 2 hours (from current 7-8 hours)",
+          "timeline": "Phase 3 Complete - Achieved"
+        },
+        {
+          "goal": "Achieve 95%+ accuracy in fraud pattern detection",
+          "metric": "Precision and recall in fraud classification",
+          "target": "95% precision, 90% recall",
+          "timeline": "Phase 4 - Q4 2025"
+        },
+        {
+          "goal": "Process 100% of SEBI regulatory documents",
+          "metric": "Documents indexed and queryable",
+          "target": "All SEBI enforcement orders, reports, and releases",
+          "timeline": "Phase 3 Complete - 205 documents processed"
+        },
+        {
+          "goal": "Enable real-time fraud analysis",
+          "metric": "Query response time",
+          "target": "< 3 seconds end-to-end",
+          "timeline": "Phase 3 Complete - Achieved (0.5-2s)"
+        },
+        {
+          "goal": "Deploy at zero infrastructure cost",
+          "metric": "Monthly hosting costs",
+          "target": "$0 (using free tiers)",
+          "timeline": "Phase 5 - Q1 2026"
+        }
+      ],
+      "success_criteria": [
+        "167,000+ document chunks indexed and searchable",
+        "Multi-hop graph queries across 500+ entities",
+        "Automated SAR generation in under 60 seconds",
+        "Support for 10+ concurrent analyst sessions",
+        "Consumer app with 99.9% uptime"
+      ]
+    },
+    
+    "user_personas": {
+      "persona_1": {
+        "name": "Financial Fraud Analyst (Primary)",
+        "role": "Senior Analyst at Financial Institution",
+        "demographics": {
+          "age": "28-45",
+          "education": "Finance, Accounting, Law degree",
+          "experience": "5-15 years in fraud investigation",
+          "technical_skill": "Intermediate to Advanced"
+        },
+        "goals": [
+          "Quickly identify fraud patterns across multiple cases",
+          "Generate comprehensive SAR reports efficiently",
+          "Trace relationships between entities and violations",
+          "Stay updated with latest SEBI regulations and precedents",
+          "Reduce manual document review time"
+        ],
+        "pain_points": [
+          "Overwhelmed with manual document analysis",
+          "Difficulty connecting patterns across cases",
+          "Time-consuming SAR report writing",
+          "Scattered data sources (PDFs, databases, emails)",
+          "Lack of tools for network analysis"
+        ],
+        "user_journey": [
+          "Create investigation case in system",
+          "Run natural language queries to gather evidence",
+          "Review clickable citations with source tracing",
+          "Visualize entity networks and relationships",
+          "Generate AI-powered SAR report",
+          "Export findings for regulatory submission"
+        ],
+        "technical_requirements": [
+          "Desktop application (Windows/Mac)",
+          "API access for integration with existing tools",
+          "Role-based access control",
+          "Audit trail for all queries and actions",
+          "Offline capability for sensitive data"
+        ]
+      },
+      
+      "persona_2": {
+        "name": "Regulatory Compliance Officer",
+        "role": "Compliance Manager at Bank/NBFC",
+        "demographics": {
+          "age": "32-50",
+          "education": "CA, MBA, Law",
+          "experience": "8-20 years in compliance",
+          "technical_skill": "Intermediate"
+        },
+        "goals": [
+          "Ensure compliance with SEBI/RBI regulations",
+          "Monitor for suspicious transactions automatically",
+          "Generate timely regulatory reports",
+          "Track regulatory changes and updates",
+          "Audit internal processes for compliance gaps"
+        ],
+        "pain_points": [
+          "Keeping up with changing regulations",
+          "Manual compliance checks are error-prone",
+          "Delayed detection of suspicious activities",
+          "Difficulty demonstrating due diligence",
+          "Resource-intensive reporting requirements"
+        ],
+        "user_journey": [
+          "Set up automated monitoring rules",
+          "Receive alerts for suspicious patterns",
+          "Investigate flagged transactions",
+          "Generate compliance reports",
+          "Submit to regulators with audit trail"
+        ],
+        "technical_requirements": [
+          "Integration with core banking systems",
+          "Automated alert mechanisms",
+          "Customizable reporting templates",
+          "Secure data handling (encryption)",
+          "Multi-user collaboration features"
+        ]
+      },
+      
+      "persona_3": {
+        "name": "Individual Consumer (Secondary - Phase 6)",
+        "role": "General Public seeking fraud protection",
+        "demographics": {
+          "age": "18-65",
+          "education": "Varied",
+          "experience": "No technical background required",
+          "technical_skill": "Basic"
+        },
+        "goals": [
+          "Check if a message/email is a scam",
+          "Verify document authenticity",
+          "Understand financial fraud risks",
+          "Get actionable advice on suspicious activities",
+          "Learn about fraud protection"
+        ],
+        "pain_points": [
+          "Can't differentiate legitimate vs scam communications",
+          "Fear of financial fraud/identity theft",
+          "Lack of accessible fraud analysis tools",
+          "Overwhelmed by technical jargon",
+          "No trusted source for fraud verification"
+        ],
+        "user_journey": [
+          "Access mobile-first web application",
+          "Upload suspicious document or paste message",
+          "Receive instant AI-powered risk assessment",
+          "Get simple, jargon-free explanation",
+          "Take recommended protective actions"
+        ],
+        "technical_requirements": [
+          "Mobile-responsive web interface",
+          "No login required for basic features",
+          "Instant results (< 5 seconds)",
+          "Privacy-preserving analysis",
+          "Educational resources integrated"
+        ]
+      }
+    },
+    
+    "features_and_functionality": {
+      "phase_1_features": {
+        "status": "✅ Complete (Sep 2025)",
+        "features": [
+          {
+            "feature_id": "F1.1",
+            "name": "Baseline RAG Pipeline",
+            "description": "Core retrieval-augmented generation using ChromaDB and all-MiniLM-L12-v2 embeddings",
+            "user_story": "As an analyst, I want to search financial documents using natural language so that I can quickly find relevant information",
+            "acceptance_criteria": [
+              "Vector database stores 100,000+ document chunks",
+              "Semantic search returns relevant results in < 2 seconds",
+              "Supports transaction and SEBI document collections",
+              "Basic relevance scoring implemented"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "model": "all-MiniLM-L12-v2 (SentenceTransformers)",
+              "vector_db": "ChromaDB (Persistent)",
+              "chunking": "RecursiveCharacterTextSplitter (1000 chars, 200 overlap)",
+              "query_types": ["semantic_search", "keyword_filter"]
+            }
+          },
+          {
+            "feature_id": "F1.2",
+            "name": "IEEE-CIS Transaction Data Ingestion",
+            "description": "Load and process 1.3GB of financial transaction data with fraud labels",
+            "user_story": "As the system, I need to ingest transaction data efficiently so that analysts can query historical fraud patterns",
+            "acceptance_criteria": [
+              "Handles 500,000+ transaction records",
+              "Memory-efficient chunked loading",
+              "Fraud label preservation",
+              "Transaction descriptions generated for RAG"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "data_source": "IEEE-CIS Fraud Detection Dataset (Kaggle)",
+              "format": "CSV (train/test splits)",
+              "preprocessing": "Missing value imputation, categorical encoding, datetime conversion",
+              "features": ["TransactionID", "TransactionAmt", "ProductCD", "card_type", "isFraud", "339 V-features"]
+            }
+          },
+          {
+            "feature_id": "F1.3",
+            "name": "SEBI Document Processing",
+            "description": "Extract and index SEBI enforcement orders and regulatory documents",
+            "user_story": "As an analyst, I want to query SEBI regulatory precedents so that I can understand enforcement patterns",
+            "acceptance_criteria": [
+              "Process PDF documents from SEBI website",
+              "Extract metadata (entities, violations, penalties)",
+              "Semantic chunking for optimal retrieval",
+              "205+ documents successfully processed"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "document_types": ["enforcement_orders", "investigation_reports", "press_releases"],
+              "extraction_tools": ["PyPDF2", "pdfplumber", "pymupdf"],
+              "metadata_extracted": ["title", "date", "entities", "violation_types", "penalty_amounts"],
+              "chunk_strategy": "Paragraph-based semantic chunking (200-1000 chars)"
+            }
+          },
+          {
+            "feature_id": "F1.4",
+            "name": "Streamlit Demo Interface",
+            "description": "Web-based UI for querying the RAG system",
+            "user_story": "As an analyst, I want a simple interface to test queries so that I can evaluate system capabilities",
+            "acceptance_criteria": [
+              "Search box with natural language input",
+              "Results display with relevance scores",
+              "Filter by collection type",
+              "Basic system health indicators"
+            ],
+            "implementation_status": "Complete"
+          }
+        ]
+      },
+      
+      "phase_2_features": {
+        "status": "✅ Complete (Sep 2025)",
+        "features": [
+          {
+            "feature_id": "F2.1",
+            "name": "Production-Grade RAG Engine",
+            "description": "Advanced multi-stage retrieval with query optimization and re-ranking",
+            "user_story": "As an analyst, I need highly accurate search results so that I don't miss critical evidence",
+            "acceptance_criteria": [
+              "Multi-stage retrieval pipeline implemented",
+              "4 query variations generated per search",
+              "BGE reranker improves top-5 precision by 30%",
+              "Confidence scoring for all results",
+              "Query classification into 5 fraud types"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "stages": [
+                "Query Optimization (4 variations: original, expanded, technical, contextual)",
+                "Initial Retrieval (vector search across all variations)",
+                "Deduplication (fingerprint-based)",
+                "Reranking (BGE reranker-large with FP16)",
+                "Final Scoring (40% similarity + 60% rerank)"
+              ],
+              "query_types": ["insider_trading", "market_manipulation", "enforcement_action", "entity_inquiry", "general_fraud"],
+              "models_used": ["all-MiniLM-L12-v2", "BAAI/bge-reranker-large"]
+            }
+          },
+          {
+            "feature_id": "F2.2",
+            "name": "Ollama LLM Integration",
+            "description": "Local LLM for answer generation using Llama 3.1 8B",
+            "user_story": "As a security-conscious organization, I want LLMs running locally so that sensitive data never leaves our infrastructure",
+            "acceptance_criteria": [
+              "Ollama client integration functional",
+              "Llama 3.1 8B model serving answers",
+              "Fallback to simpler generation if LLM unavailable",
+              "Response quality comparable to cloud APIs",
+              "Average generation time < 2 seconds"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "llm_provider": "Ollama (local deployment)",
+              "model": "llama3.1:8b",
+              "prompt_engineering": "Custom financial fraud expert system prompt",
+              "parameters": {
+                "temperature": 0.3,
+                "top_p": 0.9,
+                "max_tokens": 2048
+              },
+              "fallback_strategy": "Template-based response if Ollama unavailable"
+            }
+          },
+          {
+            "feature_id": "F2.3",
+            "name": "V-Feature Behavioral Clustering",
+            "description": "KMeans clustering on 339 anonymized features to identify behavioral archetypes",
+            "user_story": "As a data scientist, I want to group transactions by behavioral patterns so that we can identify anomalous clusters",
+            "acceptance_criteria": [
+              "5 behavioral clusters identified",
+              "Cluster names assigned based on fraud patterns",
+              "Imputation and scaling pipeline for missing values",
+              "Clustering models saved for reuse",
+              "Integration with transaction descriptions"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "algorithm": "KMeans (K=5, n_init=10)",
+              "preprocessing": ["SimpleImputer (median)", "StandardScaler"],
+              "cluster_names": [
+                "Sparse_Data_Cluster",
+                "High_Variance_Anomalous_Activity",
+                "Elevated_Risk_Pattern",
+                "Low_Risk_Standard_Pattern",
+                "Typical_Transaction_Profile"
+              ],
+              "persistence": "Pickle format for clusterer, scaler, imputer"
+            }
+          },
+          {
+            "feature_id": "F2.4",
+            "name": "Claude 3.5 Haiku Integration (Optional)",
+            "description": "Support for Anthropic's Claude for premium answer quality",
+            "user_story": "As an enterprise customer, I want the option to use Claude for highest-quality responses when API keys are available",
+            "acceptance_criteria": [
+              "Claude client integration with fallback",
+              "API key configuration support",
+              "Priority: Claude > Ollama > Fallback",
+              "Comparable response times to Ollama"
+            ],
+            "implementation_status": "Complete (Optional)"
+          }
+        ]
+      },
+      
+      "phase_3_features": {
+        "status": "✅ Complete (Oct 2025)",
+        "features": [
+          {
+            "feature_id": "F3.1",
+            "name": "API Key Authentication",
+            "description": "Secure API endpoints with header-based authentication",
+            "user_story": "As a system administrator, I need to control access to the API so that only authorized users can query sensitive fraud data",
+            "acceptance_criteria": [
+              "API key validation middleware implemented",
+              "Multiple API keys supported (dev, analyst, custom)",
+              "403 Forbidden on invalid keys",
+              "Public endpoints remain accessible",
+              "API key configuration via environment variables"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "authentication_method": "API Key (X-API-Key header)",
+              "default_keys": ["dev-api-key", "analyst-key-001"],
+              "secured_endpoints": ["/query", "/cases", "/cases/*", "/sar"],
+              "public_endpoints": ["/", "/health", "/stats"],
+              "storage": "In-memory set (production: database/env vars)"
+            }
+          },
+          {
+            "feature_id": "F3.2",
+            "name": "Persistent Case Management System",
+            "description": "SQLite-based case tracking with full CRUD operations",
+            "user_story": "As an analyst, I want to organize investigations into cases so that all related queries and evidence are tracked together",
+            "acceptance_criteria": [
+              "Create, read, update, delete cases",
+              "Case metadata: ID, description, priority, analyst, tags, status",
+              "Query history linked to cases",
+              "Evidence storage per query",
+              "Case statistics and analytics",
+              "Database persists across sessions"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "database": "SQLite (./data/cases.db)",
+              "schema": {
+                "cases": ["case_id (PK)", "description", "priority", "analyst", "status", "tags (JSON)", "created_at", "updated_at", "metadata (JSON)"],
+                "case_queries": ["id (PK)", "case_id (FK)", "query", "answer", "confidence_score", "query_type", "processing_time", "timestamp"],
+                "query_evidence": ["id (PK)", "query_id (FK)", "case_id (FK)", "rank", "score", "document", "source", "metadata (JSON)"],
+                "sar_reports": ["id (PK)", "case_id (FK)", "report_content", "generated_at", "analyst", "status"]
+              },
+              "operations": ["create_case", "get_case", "list_cases", "update_case_status", "delete_case", "add_query_to_case", "get_case_queries", "save_sar_report", "get_sar_reports", "get_case_statistics"]
+            }
+          },
+          {
+            "feature_id": "F3.3",
+            "name": "AI-Powered SAR Generation",
+            "description": "Automated creation of Suspicious Activity Reports using RAG and LLM",
+            "user_story": "As an analyst, I want to automatically generate SAR drafts so that I can save 3-4 hours per report",
+            "acceptance_criteria": [
+              "Comprehensive SAR structure (7 sections)",
+              "Uses all case queries and evidence",
+              "Generated in under 60 seconds",
+              "Downloadable as text file",
+              "Database storage with versioning",
+              "Draft/Final/Submitted status tracking"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "report_sections": [
+                "Executive Summary",
+                "Case Overview",
+                "Key Findings and Evidence",
+                "Patterns and Red Flags Identified",
+                "Supporting Documentation",
+                "Recommendations for Further Action",
+                "Conclusion"
+              ],
+              "generation_method": "RAG query synthesizing case context + LLM generation",
+              "context_included": ["case description", "priority", "analyst", "all previous queries", "top 15 evidence documents"],
+              "average_generation_time": "30-60 seconds",
+              "output_formats": ["text", "JSON"]
+            }
+          },
+          {
+            "feature_id": "F3.4",
+            "name": "Enhanced Clickable Citations",
+            "description": "Interactive evidence cards with source tracing and metadata",
+            "user_story": "As an analyst, I want to click on evidence citations to see full context and source documents so that I can verify information",
+            "acceptance_criteria": [
+              "Quick citation links ([1], [2], [3]...)",
+              "Expandable evidence cards",
+              "Source attribution (SEBI/Transactions)",
+              "Relevance score display (percentage)",
+              "Structured metadata viewer",
+              "Copy citation functionality",
+              "Link to original document (when available)"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "ui_components": [
+                "Inline citation links (markdown)",
+                "st.expander() for evidence cards",
+                "Metadata display (title, date, type, violations, entities, keywords)",
+                "Action buttons (copy, trace, view original)",
+                "Rank and score badges"
+              ],
+              "metadata_fields_displayed": ["title", "date", "type", "violations", "entities", "keywords", "penalty_amounts", "document_url"]
+            }
+          },
+          {
+            "feature_id": "F3.5",
+            "name": "Advanced KPI Dashboard",
+            "description": "Real-time analytics with Plotly visualizations",
+            "user_story": "As a manager, I want to see system performance metrics and case analytics so that I can monitor analyst productivity",
+            "acceptance_criteria": [
+              "Real-time system metrics (documents indexed, cases, queries)",
+              "Case priority distribution (pie chart)",
+              "Query performance analytics (line/scatter plots)",
+              "Case timeline visualization",
+              "Interactive Plotly charts",
+              "Exportable data tables"
+            ],
+            "implementation_status": "Complete",
+            "technical_details": {
+              "visualization_library": "Plotly Express & Graph Objects",
+              "metrics_tracked": [
+                "Total documents indexed",
+                "SEBI document count",
+                "Transaction records",
+                "Total cases",
+                "Active/Closed cases",
+                "Total queries performed",
+                "Average queries per case",
+                "Query processing times",
+                "Confidence score distribution"
+              ],
+              "chart_types": ["pie", "line", "scatter", "bar"],
+              "update_frequency": "Real-time on page load"
+            }
+          }
+        ]
+      },
+      
+      "phase_4_features": {
+        "status": "📋 Planned (Q4 2025)",
+        "features": [
+          {
+            "feature_id": "F4.1",
+            "name": "Graph Database Integration",
+            "description": "Neo4j or NetworkX for relationship-aware intelligence",
+            "user_story": "As an investigator, I want to see how entities are connected so that I can uncover hidden fraud networks",
+            "acceptance_criteria": [
+              "Graph database setup (Neo4j Desktop or NetworkX)",
+              "Graph schema designed (Entities, Cases, Documents, Transactions, Violations)",
+              "Relationships defined (COMMITTED, INVOLVED_IN, CITED_IN, TRANSACTED_WITH, etc.)",
+              "500+ entities populated",
+              "1000+ relationships mapped"
+            ],
+            "implementation_status": "Not Started",
+            "technical_details": {
+              "database_options": ["Neo4j Desktop (production)", "NetworkX (prototyping)"],
+              "node_types": ["Entity", "Case", "Document", "Transaction", "Violation", "Regulator"],
+              "edge_types": ["COMMITTED", "INVOLVED_IN", "CITED_IN", "TRANSACTED_WITH", "PENALIZED_BY", "SIMILAR_TO", "REFERENCES"],
+              "recommended_choice": "NetworkX for rapid prototyping, migrate to Neo4j if needed"
+            }
+          },
+          {
+            "feature_id": "F4.2",
+            "name": "Graph ETL Pipeline",
+            "description": "Entity and relationship extraction from documents using NLP",
+            "user_story": "As the system, I need to automatically extract entities and relationships from documents so that the graph is always up-to-date",
+            "acceptance_criteria": [
+              "NER (Named Entity Recognition) extracts companies, people, violations",
+              "Relationship extraction identifies connections",
+              "Real-time graph population on document ingestion",
+              "Entity disambiguation (same entity, different names)",
+              "80%+ extraction precision"
+            ],
+            "implementation_status": "Not Started",
+            "technical_details": {
+              "nlp_tools": ["spaCy (en_core_web_sm)", "custom financial domain rules"],
+              "entity_types": ["companies", "individuals", "regulators", "violation_types", "amounts", "dates", "case_numbers"],
+              "relationship_patterns": [
+                "'X committed insider trading' → (X)-[COMMITTED]->(insider_trading)",
+                "'SEBI penalized Y' → (Y)-[PENALIZED_BY]->(SEBI)",
+                "'Similar to case Z' → (current_case)-[SIMILAR_TO]->(Z)"
+              ],
+              "extraction_workflow": "Document → spaCy NER → Custom Rules → Graph Nodes & Edges"
+            }
+          },
+          {
+            "feature_id": "F4.3",
+            "name": "GraphRAG Core Engine",
+            "description": "Multi-hop graph traversal for context-aware retrieval",
+            "user_story": "As an analyst, I want the system to understand entity relationships when answering my queries so that I get deeper insights",
+            "acceptance_criteria": [
+              "Multi-hop queries (2-3 hops)",
+              "Graph context enhances RAG retrieval",
+              "Example: 'ABC Corp violations' also finds similar companies",
+              "Combined graph + vector search results",
+              "Graph context included in LLM prompts",
+              "< 0.5s graph query time for 2-hop traversal"
+            ],
+            "implementation_status": "Not Started",
+            "technical_details": {
+              "enhanced_workflow": [
+                "User Query",
+                "Extract Entities (NER)",
+                "Graph Traversal (find related entities, cases, violations)",
+                "Expanded Context (entities + relationships)",
+                "Vector Search (enhanced query with graph context)",
+                "Top-K Documents + Graph Context",
+                "Rerank",
+                "Generate Answer (with graph insights)"
+              ],
+              "example_query": "What violations has ABC Corp been involved in? → Graph finds: ABC Corp → [COMMITTED] → Insider Trading; ABC Corp → [SIMILAR_TO] → XYZ Corp → [PENALIZED_BY] → SEBI (₹50L)"
+            }
+          },
+          {
+            "feature_id": "F4.4",
+            "name": "Interactive Graph Visualization",
+            "description": "Network visualization of fraud patterns and entity connections",
+            "user_story": "As an analyst, I want to visually explore fraud networks so that I can quickly identify key players and patterns",
+            "acceptance_criteria": [
+              "Interactive network graph in Streamlit",
+              "Nodes colored by type (Entity, Violation, Document)",
+              "Edges labeled with relationship type",
+              "Click to explore connections",
+              "Filter by node/edge type, time range",
+              "Export graph visualizations"
+            ],
+            "implementation_status": "Not Started",
+            "technical_details": {
+              "visualization_tool": "Pyvis (generates HTML visualizations)",
+              "integration": "Streamlit component",
+              "views": [
+                "Entity Network View (show all connections for an entity)",
+                "Case Network View (show all entities in a case)",
+                "Violation Pattern View (cluster similar violations)"
+              ],
+              "interactions": ["click to expand", "filter", "zoom/pan", "export as image/HTML"]
+            }
+          }
+        ]
+      },
+      
+      "phase_5_features": {
+        "status": "📋 Planned (Q1 2026)",
+        "features": [
+          {
+            "feature_id": "F5.1",
+            "name": "Cloud Deployment",
+            "description": "Deploy to Streamlit Community Cloud or Hugging Face Spaces",
+            "user_story": "As a project stakeholder, I want the application publicly accessible so that we can demonstrate capabilities to investors and users",
+            "acceptance_criteria": [
+              "Application deployed on free platform",
+              "requirements.txt optimized for cloud",
+              "Deployment scripts and configurations",
+              "Public URL accessible",
+              "99.9% uptime SLA"
+            ],
+            "implementation_status": "Not Started"
+          },
+          {
+            "feature_id": "F5.2",
+            "name": "End-to-End Testing Suite",
+            "description": "Comprehensive testing for all features",
+            "user_story": "As a QA engineer, I need automated tests to ensure system reliability",
+            "acceptance_criteria": [
+              "Unit tests for all core modules",
+              "Integration tests for API endpoints",
+              "UI tests for Streamlit app",
+              "Performance tests (load testing)",
+              "Security vulnerability scans"
+            ],
+            "implementation_status": "Not Started"
+          },
+          {
+            "feature_id": "F5.3",
+            "name": "Comprehensive Documentation",
+            "description": "User guides, API docs, deployment guides",
+            "user_story": "As a new user, I want clear documentation so that I can quickly get started",
+            "acceptance_criteria": [
+              "User manual with screenshots",
+              "API reference documentation",
+              "Deployment guide (step-by-step)",
+              "FAQ section",
+              "Video tutorials"
+            ],
+            "implementation_status": "Partial (roadmap and guides exist)"
+          }
+        ]
+      },
+      
+      "phase_6_features": {
+        "status": "📋 Planned (Q2 2026)",
+        "features": [
+          {
+            "feature_id": "F6.1",
+            "name": "Consumer Security Web App",
+            "description": "Mobile-first public-facing application for fraud detection",
+            "user_story": "As a consumer, I want to check if a message is a scam using my phone so that I can avoid fraud",
+            "acceptance_criteria": [
+              "Mobile-responsive design",
+              "No login required for basic features",
+              "Instant risk scoring (< 5 seconds)",
+              "Simple, jargon-free language",
+              "Deployed on separate free platform"
+            ],
+            "implementation_status": "Not Started"
+          },
+          {
+            "feature_id": "F6.2",
+            "name": "Secure Document Analysis",
+            "description": "Upload and analyze documents for fraud indicators",
+            "user_story": "As a consumer, I want to upload a contract to check if it's fraudulent",
+            "acceptance_criteria": [
+              "Secure file upload (PDF, images, text)",
+              "Document analysis using Fin-E5 + LLM",
+              "Risk report in plain English",
+              "Privacy: no document storage",
+              "Supported file types: PDF, PNG, JPG, DOCX"
+            ],
+            "implementation_status": "Not Started"
+          },
+          {
+            "feature_id": "F6.3",
+            "name": "Real-Time Scam Message Analyzer",
+            "description": "Paste text messages/emails for instant scam detection",
+            "user_story": "As a consumer, I received a suspicious email and want to know if it's a scam",
+            "acceptance_criteria": [
+              "Text input form",
+              "LLM analysis for scam tactics",
+              "Instant risk score (0-100)",
+              "Explanation of red flags",
+              "Actionable recommendations"
+            ],
+            "implementation_status": "Not Started"
+          },
+          {
+            "feature_id": "F6.4",
+            "name": "User Education Hub",
+            "description": "Educational content on fraud prevention",
+            "user_story": "As a consumer, I want to learn about common scams so that I can protect myself",
+            "acceptance_criteria": [
+              "Knowledge base articles",
+              "FAQs on common scams",
+              "Actionable prevention tips",
+              "Latest scam alerts",
+              "Searchable content"
+            ],
+            "implementation_status": "Not Started"
+          }
+        ]
+      }
+    },
+    
+    "technical_architecture": {
+      "system_architecture": {
+        "tier_1": {
+          "name": "Data Ingestion & Processing",
+          "description": "Real-time pipeline for document and transaction data",
+          "components": [
+            {
+              "component": "DataIngestion",
+              "file": "src/data/ingestion.py",
+              "responsibilities": [
+                "Load IEEE-CIS transaction data (CSV)",
+                "Load SEBI documents (PDF)",
+                "V-feature clustering for behavioral archetypes",
+                "Data preprocessing and cleaning",
+                "Save/load clustering models"
+              ],
+              "key_methods": [
+                "load_ieee_cis_combined_data()",
+                "load_sebi_data_from_files()",
+                "train_v_feature_clusters()",
+                "process_sebi_documents()",
+                "run_sebi_pipeline()"
+              ]
+            },
+            {
+              "component": "SEBIProcessor",
+              "file": "src/data/sebi_processor.py",
+              "responsibilities": [
+                "Clean SEBI document content",
+                "Semantic chunking (200-1000 chars)",
+                "Extract metadata (entities, violations, penalties)",
+                "TF-IDF keyword extraction",
+                "NLP-based entity recognition"
+              ],
+              "key_methods": [
+                "process_documents()",
+                "_clean_document_content()",
+                "_extract_document_metadata()",
+                "_create_semantic_chunks()",
+                "_extract_entities()"
+              ]
+            },
+            {
+              "component": "SEBIFileProcessor",
+              "file": "src/data/sebi_file_processor.py",
+              "responsibilities": [
+                "Read PDF files from directory",
+                "Extract text from PDFs",
+                "Detect document type (enforcement order, report, press release)",
+                "Handle various PDF formats",
+                "Generate processing summaries"
+              ]
+            }
+          ]
+        },
+        
+        "tier_2": {
+          "name": "Core Intelligence Engine",
+          "description": "RAG and GraphRAG logic for fraud analysis",
+          "components": [
+            {
+              "component": "AdvancedRAGEngine",
+              "file": "src/core/advanced_rag_engine.py",
+              "responsibilities": [
+                "Multi-stage retrieval pipeline",
+                "Query optimization (4 variations)",
+                "Vector search with ChromaDB",
+                "BGE reranking",
+                "LLM answer generation (Ollama/Claude)",
+                "Confidence scoring and query classification"
+              ],
+              "key_methods": [
+                "query() - Main RAG workflow",
+                "multi_stage_retrieval()",
+                "optimize_query()",
+                "_rerank_results()",
+                "generate_answer()",
+                "_generate_with_ollama()",
+                "_generate_with_claude()"
+              ],
+              "models_used": [
+                {
+                  "model_id": "Model 1",
+                  "name": "all-MiniLM-L12-v2",
+                  "purpose": "Embedding generation",
+                  "provider": "SentenceTransformers"
+                },
+                {
+                  "model_id": "Model 2",
+                  "name": "Llama 3.1 8B",
+                  "purpose": "Answer generation",
+                  "provider": "Ollama (local)"
+                },
+                {
+                  "model_id": "Model 3",
+                  "name": "BAAI/bge-reranker-large",
+                  "purpose": "Post-retrieval reranking",
+                  "provider": "FlagEmbedding"
+                },
+                {
+                  "model_id": "Model 4 (Future)",
+                  "name": "Fin-E5",
+                  "purpose": "Fine-tuned financial embeddings",
+                  "provider": "Custom fine-tuning"
+                }
+              ],
+              "performance_metrics": {
+                "query_time": "0.5-2 seconds",
+                "confidence_threshold": "0.7",
+                "typical_evidence_count": "5-10 documents",
+                "reranking_improvement": "30% precision gain"
+              }
+            },
+            {
+              "component": "BaselineRAGEngine",
+              "file": "src/core/rag_engine.py",
+              "responsibilities": [
+                "Baseline vector search (Phase 1)",
+                "Simple embedding + retrieval",
+                "ChromaDB collection management",
+                "Basic relevance scoring"
+              ],
+              "status": "Legacy (superseded by AdvancedRAGEngine)"
+            },
+            {
+              "component": "CaseManager",
+              "file": "src/core/case_manager.py",
+              "responsibilities": [
+                "SQLite database management",
+                "Case CRUD operations",
+                "Query history tracking",
+                "Evidence storage",
+                "SAR report persistence",
+                "Case statistics and analytics"
+              ],
+              "key_methods": [
+                "create_case()",
+                "get_case()",
+                "list_cases()",
+                "delete_case()",
+                "add_query_to_case()",
+                "save_sar_report()",
+                "get_case_statistics()"
+              ],
+              "database_schema": {
+                "cases": ["case_id (PK)", "description", "priority", "analyst", "status", "tags", "created_at", "updated_at", "metadata"],
+                "case_queries": ["id (PK)", "case_id (FK)", "query", "answer", "confidence_score", "query_type", "processing_time", "timestamp"],
+                "query_evidence": ["id (PK)", "query_id (FK)", "case_id (FK)", "rank", "score", "document", "source", "metadata"],
+                "sar_reports": ["id (PK)", "case_id (FK)", "report_content", "generated_at", "analyst", "status"]
+              }
+            },
+            {
+              "component": "GraphManager (Phase 4)",
+              "file": "src/core/graph_manager.py (planned)",
+              "responsibilities": [
+                "Graph database operations (NetworkX/Neo4j)",
+                "Node and edge CRUD",
+                "Multi-hop traversal queries",
+                "Entity resolution",
+                "Graph persistence"
+              ],
+              "status": "Not Implemented"
+            }
+          ]
+        },
+        
+        "tier_3": {
+          "name": "Application & Presentation Layer",
+          "description": "Analyst Cockpit + Consumer Suite",
+          "components": [
+            {
+              "component": "FastAPI Backend (Advanced)",
+              "file": "src/api/advanced_main.py",
+              "responsibilities": [
+                "RESTful API endpoints",
+                "API key authentication",
+                "Request/response handling",
+                "Background tasks for logging",
+                "CORS middleware",
+                "Error handling and status codes"
+              ],
+              "endpoints": [
+                {
+                  "method": "GET",
+                  "path": "/",
+                  "description": "Root endpoint",
+                  "auth_required": false
+                },
+                {
+                  "method": "GET",
+                  "path": "/health",
+                  "description": "System health check with model status",
+                  "auth_required": false,
+                  "response_example": {
+                    "status": "healthy",
+                    "version": "2.0.0",
+                    "models_available": {
+                      "claude_3_5_haiku": false,
+                      "ollama_llama": true,
+                      "bge_reranker": true,
+                      "embedding_model": "all-MiniLM-L12-v2"
+                    },
+                    "database_stats": {
+                      "sebi_document_count": 167000,
+                      "total_documents": 167000
+                    }
+                  }
+                },
+                {
+                  "method": "POST",
+                  "path": "/query",
+                  "description": "RAG query with Ollama-powered generation",
+                  "auth_required": true,
+                  "request_body": {
+                    "query": "What are the penalties for insider trading?",
+                    "n_results": 5,
+                    "include_metadata": true
+                  },
+                  "response_example": {
+                    "query": "What are the penalties for insider trading?",
+                    "answer": "Based on SEBI enforcement actions...",
+                    "confidence_score": 0.87,
+                    "query_type": "insider_trading",
+                    "processing_time": 1.23,
+                    "evidence": [
+                      {
+                        "rank": 1,
+                        "score": 0.92,
+                        "document": "SEBI Order...",
+                        "metadata": {},
+                        "source": "sebi_documents"
+                      }
+                    ],
+                    "metadata": {
+                      "model_used": "ollama_llama",
+                      "reranker_used": true,
+                      "embedding_model": "all-MiniLM-L12-v2"
+                    }
+                  }
+                },
+                {
+                  "method": "POST",
+                  "path": "/cases",
+                  "description": "Create new investigation case",
+                  "auth_required": true
+                },
+                {
+                  "method": "GET",
+                  "path": "/cases",
+                  "description": "List all cases",
+                  "auth_required": true
+                },
+                {
+                  "method": "GET",
+                  "path": "/cases/{case_id}",
+                  "description": "Get case details with queries",
+                  "auth_required": true
+                },
+                {
+                  "method": "DELETE",
+                  "path": "/cases/{case_id}",
+                  "description": "Delete a case",
+                  "auth_required": true
+                },
+                {
+                  "method": "POST",
+                  "path": "/cases/{case_id}/analyze",
+                  "description": "Run analysis query on a case",
+                  "auth_required": true
+                },
+                {
+                  "method": "POST",
+                  "path": "/cases/{case_id}/sar",
+                  "description": "Generate SAR report for case",
+                  "auth_required": true
+                },
+                {
+                  "method": "GET",
+                  "path": "/cases/{case_id}/sar",
+                  "description": "Get all SAR reports for case",
+                  "auth_required": true
+                },
+                {
+                  "method": "GET",
+                  "path": "/stats",
+                  "description": "System and case statistics",
+                  "auth_required": false
+                }
+              ],
+              "authentication": {
+                "method": "API Key (Header-based)",
+                "header_name": "X-API-Key",
+                "default_keys": ["dev-api-key", "analyst-key-001"],
+                "error_response": {
+                  "status_code": 403,
+                  "detail": "Invalid or missing API key"
+                }
+              },
+              "configuration": {
+                "host": "127.0.0.1",
+                "port": 8001,
+                "reload": false,
+                "cors_origins": ["*"]
+              }
+            },
+            {
+              "component": "Streamlit Frontend (Advanced)",
+              "file": "src/frontend/advanced_streamlit_app.py",
+              "responsibilities": [
+                "Analyst Cockpit UI",
+                "Case management interface",
+                "Advanced search with RAG",
+                "Evidence visualization with citations",
+                "SAR generation UI",
+                "Analytics dashboard with Plotly",
+                "System status monitoring"
+              ],
+              "pages_and_sections": [
+                {
+                  "page": "System Status",
+                  "components": [
+                    "Health check indicator",
+                    "Model availability badges",
+                    "Database statistics"
+                  ]
+                },
+                {
+                  "page": "Case Management",
+                  "components": [
+                    "Create new case form",
+                    "Case selection dropdown",
+                    "Case details expander",
+                    "Query history viewer",
+                    "Case action buttons (analyze, generate SAR, delete)"
+                  ]
+                },
+                {
+                  "page": "Intelligence Search",
+                  "components": [
+                    "Advanced search form",
+                    "RAG response display",
+                    "Clickable citations",
+                    "Expandable evidence cards",
+                    "Metadata viewer"
+                  ]
+                },
+                {
+                  "page": "SAR Generation",
+                  "components": [
+                    "Generate SAR button",
+                    "SAR report viewer",
+                    "Download SAR functionality",
+                    "Report history"
+                  ]
+                },
+                {
+                  "page": "Analytics Dashboard",
+                  "components": [
+                    "System metrics (documents, cases, queries)",
+                    "Case priority pie chart",
+                    "Query performance line chart",
+                    "Confidence scatter plot",
+                    "Case statistics table"
+                  ]
+                }
+              ],
+              "session_state": [
+                "cases: Dict of loaded cases",
+                "current_case: Currently selected case ID",
+                "query_history: List of all queries",
+                "api_key: Authentication key"
+              ],
+              "configuration": {
+                "api_base_url": "http://localhost:8001",
+                "default_api_key": "dev-api-key",
+                "page_config": {
+                  "title": "Financial Intelligence Platform - Analyst Cockpit",
+                  "icon": "🕵️",
+                  "layout": "wide"
+                }
+              }
+            }
+          ]
+        }
+      },
+      
+      "data_flow": {
+        "ingestion_flow": [
+          "SEBI PDF files → SEBIFileProcessor → Extract text",
+          "Raw text → SEBIProcessor → Clean, chunk, extract metadata",
+          "ProcessedChunks → AdvancedRAGEngine → Generate embeddings",
+          "Embeddings + Metadata → ChromaDB → Store in sebi_documents collection"
+        ],
+        "query_flow": [
+          "User query (Streamlit) → POST /query (API) → AdvancedRAGEngine.query()",
+          "Query optimization → 4 query variations",
+          "Multi-stage retrieval → Search ChromaDB with all variations",
+          "Deduplication → Remove duplicate results",
+          "Reranking → BGE reranker scores documents",
+          "Evidence selection → Top-N documents",
+          "LLM generation → Ollama/Claude generates answer",
+          "Response formatting → JSON response",
+          "Display → Streamlit renders answer + evidence"
+        ],
+        "case_management_flow": [
+          "Create case (UI) → POST /cases (API) → CaseManager.create_case()",
+          "Store in SQLite → cases table",
+          "Run query → POST /cases/{id}/analyze → Execute RAG query",
+          "Save query + evidence → case_queries + query_evidence tables",
+          "Generate SAR → POST /cases/{id}/sar → Comprehensive RAG query",
+          "LLM generates report → Save to sar_reports table",
+          "Download → GET /cases/{id}/sar → Return report content"
+        ]
+      },
+      
+      "database_design": {
+        "vector_database": {
+          "technology": "ChromaDB",
+          "persistence_path": "./data/chroma_db",
+          "collections": [
+            {
+              "name": "sebi_documents_advanced",
+              "description": "SEBI enforcement orders, reports, press releases",
+              "document_count": 167000,
+              "embedding_dimension": 384,
+              "metadata_fields": [
+                "chunk_id",
+                "document_id",
+                "document_type",
+                "title",
+                "chunk_index",
+                "violation_types",
+                "entities",
+                "keywords",
+                "source",
+                "date",
+                "url"
+              ]
+            },
+            {
+              "name": "transactions_advanced",
+              "description": "IEEE-CIS transaction data",
+              "document_count": 0,
+              "note": "Ready for integration in Phase 4"
+            }
+          ],
+          "settings": {
+            "anonymized_telemetry": false
+          }
+        },
+        
+        "relational_database": {
+          "technology": "SQLite",
+          "database_path": "./data/cases.db",
+          "tables": [
+            {
+              "table_name": "cases",
+              "primary_key": "case_id",
+              "columns": [
+                {"name": "case_id", "type": "TEXT", "constraints": "PRIMARY KEY"},
+                {"name": "description", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "priority", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "analyst", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "status", "type": "TEXT", "constraints": "DEFAULT 'active'"},
+                {"name": "tags", "type": "TEXT", "constraints": ""},
+                {"name": "created_at", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "updated_at", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "metadata", "type": "TEXT", "constraints": ""}
+              ],
+              "indexes": [],
+              "sample_data": {
+                "case_id": "CASE_20251017_143022",
+                "description": "Suspected insider trading in ABC Corp",
+                "priority": "high",
+                "analyst": "Jane Doe",
+                "status": "active",
+                "tags": "[\"insider_trading\", \"investigation\"]",
+                "created_at": "2025-10-17T14:30:22",
+                "updated_at": "2025-10-17T14:30:22",
+                "metadata": "{}"
+              }
+            },
+            {
+              "table_name": "case_queries",
+              "primary_key": "id",
+              "columns": [
+                {"name": "id", "type": "INTEGER", "constraints": "PRIMARY KEY AUTOINCREMENT"},
+                {"name": "case_id", "type": "TEXT", "constraints": "NOT NULL, FOREIGN KEY REFERENCES cases(case_id)"},
+                {"name": "query", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "answer", "type": "TEXT", "constraints": ""},
+                {"name": "confidence_score", "type": "REAL", "constraints": ""},
+                {"name": "query_type", "type": "TEXT", "constraints": ""},
+                {"name": "processing_time", "type": "REAL", "constraints": ""},
+                {"name": "timestamp", "type": "TEXT", "constraints": "NOT NULL"}
+              ],
+              "foreign_keys": ["case_id → cases.case_id"]
+            },
+            {
+              "table_name": "query_evidence",
+              "primary_key": "id",
+              "columns": [
+                {"name": "id", "type": "INTEGER", "constraints": "PRIMARY KEY AUTOINCREMENT"},
+                {"name": "query_id", "type": "INTEGER", "constraints": "NOT NULL, FOREIGN KEY REFERENCES case_queries(id)"},
+                {"name": "case_id", "type": "TEXT", "constraints": "NOT NULL, FOREIGN KEY REFERENCES cases(case_id)"},
+                {"name": "rank", "type": "INTEGER", "constraints": ""},
+                {"name": "score", "type": "REAL", "constraints": ""},
+                {"name": "document", "type": "TEXT", "constraints": ""},
+                {"name": "source", "type": "TEXT", "constraints": ""},
+                {"name": "metadata", "type": "TEXT", "constraints": ""}
+              ],
+              "foreign_keys": ["query_id → case_queries.id", "case_id → cases.case_id"]
+            },
+            {
+              "table_name": "sar_reports",
+              "primary_key": "id",
+              "columns": [
+                {"name": "id", "type": "INTEGER", "constraints": "PRIMARY KEY AUTOINCREMENT"},
+                {"name": "case_id", "type": "TEXT", "constraints": "NOT NULL, FOREIGN KEY REFERENCES cases(case_id)"},
+                {"name": "report_content", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "generated_at", "type": "TEXT", "constraints": "NOT NULL"},
+                {"name": "analyst", "type": "TEXT", "constraints": ""},
+                {"name": "status", "type": "TEXT", "constraints": "DEFAULT 'draft'"}
+              ],
+              "foreign_keys": ["case_id → cases.case_id"]
+            }
+          ]
+        },
+        
+        "graph_database_phase4": {
+          "technology": "NetworkX (prototype) or Neo4j (production)",
+          "status": "Planned",
+          "schema": {
+            "node_types": [
+              {"type": "Entity", "properties": ["name", "type", "description"]},
+              {"type": "Case", "properties": ["case_id", "description", "priority"]},
+              {"type": "Document", "properties": ["document_id", "title", "type", "date"]},
+              {"type": "Transaction", "properties": ["transaction_id", "amount", "is_fraud"]},
+              {"type": "Violation", "properties": ["violation_type", "severity"]},
+              {"type": "Regulator", "properties": ["name", "jurisdiction"]}
+            ],
+            "edge_types": [
+              {"type": "COMMITTED", "from": "Entity", "to": "Violation"},
+              {"type": "INVOLVED_IN", "from": "Entity", "to": "Case"},
+              {"type": "CITED_IN", "from": "Entity", "to": "Document"},
+              {"type": "TRANSACTED_WITH", "from": "Entity", "to": "Entity"},
+              {"type": "PENALIZED_BY", "from": "Entity", "to": "Regulator"},
+              {"type": "SIMILAR_TO", "from": "Case", "to": "Case"},
+              {"type": "REFERENCES", "from": "Document", "to": "Document"}
+            ]
+          },
+          "target_metrics": {
+            "entities": "500+",
+            "relationships": "1000+",
+            "extraction_precision": "80%+",
+            "query_time_2hop": "< 0.5s"
+          }
+        }
+      },
+      
+      "technology_stack": {
+        "programming_languages": ["Python 3.10+"],
+        
+        "backend_frameworks": [
+          {"name": "FastAPI", "version": ">=0.104.1", "purpose": "REST API server"},
+          {"name": "Uvicorn", "version": ">=0.24.0", "purpose": "ASGI server"}
+        ],
+        
+        "frontend_frameworks": [
+          {"name": "Streamlit", "version": ">=1.28.1", "purpose": "Web UI framework"}
+        ],
+        
+        "ai_ml_libraries": [
+          {"name": "Langchain", "version": ">=0.0.350", "purpose": "RAG orchestration"},
+          {"name": "Sentence-Transformers", "version": ">=2.2.2", "purpose": "Embeddings (all-MiniLM-L12-v2)"},
+          {"name": "Ollama", "version": ">=0.1.7", "purpose": "Local LLM inference"},
+          {"name": "FlagEmbedding", "version": ">=1.2.0", "purpose": "BGE reranker"},
+          {"name": "Transformers", "version": ">=4.36.0", "purpose": "HuggingFace models"},
+          {"name": "PyTorch", "version": ">=2.1.1", "purpose": "Deep learning backend"},
+          {"name": "scikit-learn", "version": ">=1.4.0", "purpose": "V-feature clustering"},
+          {"name": "NLTK", "version": "(via dependencies)", "purpose": "NLP preprocessing"}
+        ],
+        
+        "databases": [
+          {"name": "ChromaDB", "version": ">=0.4.18", "purpose": "Vector database for embeddings"},
+          {"name": "SQLite", "version": "3.x (built-in)", "purpose": "Relational database for cases"},
+          {"name": "Neo4j (Phase 4)", "version": ">=5.14.1", "purpose": "Graph database (optional)"},
+          {"name": "NetworkX (Phase 4)", "version": ">=3.2.1", "purpose": "In-memory graph (prototyping)"}
+        ],
+        
+        "data_processing": [
+          {"name": "Pandas", "version": ">=2.2.0", "purpose": "Data manipulation"},
+          {"name": "NumPy", "version": ">=1.26.0", "purpose": "Numerical computing"},
+          {"name": "PyPDF2", "version": ">=3.0.1", "purpose": "PDF text extraction"},
+          {"name": "pdfplumber", "version": ">=0.10.0", "purpose": "Advanced PDF parsing"},
+          {"name": "pymupdf", "version": ">=1.23.0", "purpose": "High-performance PDF extraction"}
+        ],
+        
+        "visualization": [
+          {"name": "Plotly", "version": ">=5.17.0", "purpose": "Interactive charts"},
+          {"name": "Matplotlib", "version": ">=3.8.2", "purpose": "Static visualizations"},
+          {"name": "Seaborn", "version": ">=0.13.0", "purpose": "Statistical plots"},
+          {"name": "Pyvis (Phase 4)", "version": ">=0.3.2", "purpose": "Network graph visualization"}
+        ],
+        
+        "utilities": [
+          {"name": "python-dotenv", "version": ">=1.0.0", "purpose": "Environment variables"},
+          {"name": "Pydantic", "version": ">=2.5.0", "purpose": "Data validation"},
+          {"name": "httpx", "version": ">=0.25.2", "purpose": "HTTP client"},
+          {"name": "requests", "version": "(dependency)", "purpose": "HTTP requests"}
+        ],
+        
+        "development_tools": [
+          {"name": "pytest", "version": ">=7.4.3", "purpose": "Unit testing"},
+          {"name": "black", "version": ">=23.11.0", "purpose": "Code formatting"},
+          {"name": "flake8", "version": ">=6.1.0", "purpose": "Linting"},
+          {"name": "pre-commit", "version": ">=3.6.0", "purpose": "Git hooks"}
+        ],
+        
+        "optional_libraries": [
+          {"name": "Anthropic", "version": ">=0.7.0", "purpose": "Claude API (premium)"},
+          {"name": "spaCy (Phase 4)", "version": ">=3.7.0", "purpose": "Entity extraction"},
+          {"name": "FAISS-CPU", "version": ">=1.7.4", "purpose": "Alternative vector search"}
+        ]
+      },
+      
+      "deployment_architecture": {
+        "development": {
+          "environment": "Local machine",
+          "components": [
+            {"service": "FastAPI Server", "host": "localhost", "port": 8001},
+            {"service": "Streamlit UI", "host": "localhost", "port": 8501},
+            {"service": "Ollama LLM", "host": "localhost", "port": 11434},
+            {"service": "ChromaDB", "storage": "local", "path": "./data/chroma_db"},
+            {"service": "SQLite", "storage": "local", "path": "./data/cases.db"}
+          ],
+          "startup_process": [
+            "Activate virtual environment: .\\financevenv\\Scripts\\activate",
+            "Terminal 1: Start API: python start_advanced_api.py",
+            "Terminal 2: Start UI: python start_advanced_streamlit.py",
+            "Access UI: http://localhost:8501",
+            "Access API docs: http://localhost:8001/docs"
+          ]
+        },
+        
+        "production_phase5": {
+          "platform_options": [
+            {
+              "platform": "Streamlit Community Cloud",
+              "cost": "Free tier",
+              "features": ["Public URL", "Automatic deployments from GitHub", "Resource limits: 1GB RAM, 1 vCPU"],
+              "limitations": ["No persistent storage for SQLite", "No background jobs"],
+              "workarounds": ["Use cloud SQLite (Turso) or PostgreSQL", "Move to Hugging Face Spaces for compute"]
+            },
+            {
+              "platform": "Hugging Face Spaces",
+              "cost": "Free tier (upgraded tiers available)",
+              "features": ["Docker support", "GPU access (paid)", "Persistent storage", "Public URL"],
+              "limitations": ["Community tier has resource limits"],
+              "recommended_for": "Full-featured deployment with Ollama"
+            }
+          ],
+          "deployment_steps": [
+            "Prepare requirements.txt for cloud",
+            "Create Dockerfile (for HF Spaces)",
+            "Configure environment variables",
+            "Set up secrets (API keys)",
+            "Push to GitHub repository",
+            "Connect to deployment platform",
+            "Configure health checks",
+            "Test deployed application"
+          ],
+          "target_metrics": {
+            "uptime": "99.9%",
+            "monthly_cost": "$0",
+            "response_time": "< 5 seconds",
+            "concurrent_users": "10+"
+          }
+        }
+      }
+    },
+    
+    "security_and_compliance": {
+      "authentication_authorization": {
+        "api_authentication": {
+          "method": "API Key (Header-based)",
+          "implementation": "X-API-Key header validation",
+          "key_storage": "Environment variables + in-memory set",
+          "default_keys": ["dev-api-key", "analyst-key-001"],
+          "production_recommendation": "Migrate to database with hashed keys or OAuth 2.0"
+        },
+        "role_based_access_control": {
+          "status": "Not Implemented",
+          "future_roles": [
+            {"role": "admin", "permissions": ["all operations"]},
+            {"role": "analyst", "permissions": ["create cases", "query", "generate SAR"]},
+            {"role": "viewer", "permissions": ["read cases", "query"]},
+            {"role": "consumer", "permissions": ["document analysis", "scam detection"]}
+          ]
+        }
+      },
+      
+      "data_privacy": {
+        "sensitive_data_handling": [
+          "No personal data collected from consumers (Phase 6)",
+          "Case data stored locally in SQLite",
+          "Documents never leave local infrastructure (Ollama local LLM)",
+          "Optional Claude integration requires explicit API key",
+          "No telemetry or tracking (ChromaDB anonymized_telemetry=False)"
+        ],
+        "data_retention": [
+          "Cases: Retained until manual deletion",
+          "Query history: Retained per case",
+          "SAR reports: Retained indefinitely for audit",
+          "Vector database: Retained until manual reset",
+          "Consumer uploads (Phase 6): Never stored, processed in-memory only"
+        ],
+        "compliance_considerations": [
+          "GDPR: No personal data processed without consent",
+          "SEBI regulations: All data sources from public SEBI website",
+          "Data sovereignty: Local deployment ensures data stays in-country",
+          "Audit trail: All case operations logged with timestamps"
+        ]
+      },
+      
+      "security_measures": {
+        "application_security": [
+          "Input validation with Pydantic models",
+          "SQL injection prevention (parameterized queries)",
+          "XSS protection (Streamlit auto-escapes)",
+          "CORS configured (restrict in production)",
+          "API key validation for sensitive endpoints",
+          "Rate limiting (not implemented - future)"
+        ],
+        "data_security": [
+          "Local SQLite database (file permissions)",
+          "ChromaDB local persistence (no network exposure)",
+          "Environment variables for secrets (.env file)",
+          "No hardcoded credentials in code",
+          "HTTPS recommended for production deployment"
+        ],
+        "infrastructure_security": [
+          "Local-first architecture (no cloud dependencies)",
+          "Ollama runs locally (no external API calls)",
+          "Firewall rules for API server (production)",
+          "Regular dependency updates (requirements.txt)",
+          "Security scanning with flake8 and pre-commit hooks"
+        ]
+      }
+    },
+    
+    "performance_requirements": {
+      "response_time_targets": {
+        "api_health_check": "< 100ms",
+        "simple_query": "< 2 seconds",
+        "advanced_rag_query": "< 3 seconds (end-to-end)",
+        "sar_generation": "< 60 seconds",
+        "case_creation": "< 500ms",
+        "graph_traversal_2hop": "< 500ms (Phase 4)",
+        "dashboard_load": "< 2 seconds"
+      },
+      
+      "scalability_targets": {
+        "documents_indexed": "1M+ (ChromaDB)",
+        "concurrent_users": "10-50 (Phase 3), 100+ (Phase 5)",
+        "cases_per_analyst": "Unlimited",
+        "queries_per_second": "10 (current), 100 (future)",
+        "vector_search_throughput": "100 queries/second (ChromaDB)",
+        "graph_nodes": "10,000+ (Phase 4)",
+        "graph_relationships": "50,000+ (Phase 4)"
+      },
+      
+      "resource_utilization": {
+        "memory": {
+          "development": "4-8 GB RAM",
+          "production": "16 GB RAM recommended",
+          "breakdown": [
+            "Ollama LLM: 4-6 GB",
+            "ChromaDB: 1-2 GB",
+            "Application: 1-2 GB",
+            "Streamlit: 500 MB"
+          ]
+        },
+        "storage": {
+          "chroma_db": "~5 GB (167K documents)",
+          "cases_db": "~100 MB (thousands of cases)",
+          "ollama_models": "~5 GB per model",
+          "sebi_raw_pdfs": "~2 GB",
+          "ieee_cis_data": "~1.3 GB",
+          "total_estimated": "15-20 GB"
+        },
+        "compute": {
+          "cpu_cores": "4+ cores recommended",
+          "gpu": "Optional (Ollama supports GPU acceleration)",
+          "network": "< 10 Mbps (mostly local)"
+        }
+      },
+      
+      "optimization_techniques": {
+        "query_optimization": [
+          "Multi-stage retrieval reduces irrelevant results",
+          "Deduplication prevents redundant processing",
+          "Reranking focuses LLM on top evidence",
+          "Query caching (not implemented - future)"
+        ],
+        "database_optimization": [
+          "ChromaDB indexing for fast vector search",
+          "SQLite indexes on case_id (foreign keys)",
+          "Embeddings precomputed and stored",
+          "Chunking strategy optimized (200-1000 chars)"
+        ],
+        "model_optimization": [
+          "BGE reranker uses FP16 (half precision)",
+          "Ollama quantized models (8-bit)",
+          "Embedding model (all-MiniLM-L12-v2) is lightweight",
+          "Batch processing for multiple embeddings"
+        ]
+      }
+    },
+    
+    "testing_strategy": {
+      "unit_tests": {
+        "coverage_target": "80%",
+        "test_framework": "pytest",
+        "test_files": [
+          "tests/test_rag_engine.py",
+          "test_advanced_rag.py",
+          "test_advanced_api.py",
+          "test_complete_sebi_pipeline.py",
+          "test_ollama_integration.py"
+        ],
+        "key_test_areas": [
+          "RAG engine query processing",
+          "Case CRUD operations",
+          "SEBI document processing",
+          "Embedding generation",
+          "Reranking logic",
+          "SAR report generation"
+        ]
+      },
+      
+      "integration_tests": {
+        "scope": "End-to-end workflows",
+        "test_scenarios": [
+          "Create case → Run query → Generate SAR → Delete case",
+          "Upload SEBI documents → Process → Index → Query",
+          "Multi-stage retrieval pipeline",
+          "API authentication and authorization",
+          "Graph traversal + vector search (Phase 4)"
+        ]
+      },
+      
+      "performance_tests": {
+        "load_testing": [
+          "10 concurrent users querying simultaneously",
+          "100 queries in 60 seconds",
+          "SAR generation under load"
+        ],
+        "stress_testing": [
+          "1M+ document indexing",
+          "100+ simultaneous connections",
+          "Memory leak detection"
+        ],
+        "benchmarking": [
+          "Query response times across fraud types",
+          "Reranker precision improvement",
+          "LLM generation speed (Ollama vs Claude)"
+        ]
+      },
+      
+      "security_tests": {
+        "vulnerability_scanning": [
+          "Dependency vulnerability checks (pip-audit)",
+          "SQL injection attempts",
+          "XSS attack simulation",
+          "API key brute-force testing"
+        ],
+        "penetration_testing": [
+          "API endpoint security",
+          "File upload vulnerabilities (Phase 6)",
+          "Session hijacking attempts"
+        ]
+      },
+      
+      "user_acceptance_testing": {
+        "test_users": ["Fraud analysts", "Compliance officers"],
+        "test_scenarios": [
+          "Investigate a real SEBI case",
+          "Generate production-quality SAR",
+          "Navigate UI without training",
+          "Verify citation accuracy"
+        ],
+        "acceptance_criteria": [
+          "90% user satisfaction score",
+          "< 10 minutes to create first case",
+          "SAR quality comparable to manual reports",
+          "Zero critical bugs in UAT"
+        ]
+      }
+    },
+    
+    "implementation_roadmap": {
+      "timeline_overview": {
+        "total_duration": "31 weeks (7-8 months)",
+        "phases_completed": "3/6 (50%)",
+        "current_phase": "Phase 4 (Planning)",
+        "next_milestone": "GraphRAG Implementation (Dec 2025)",
+        "final_delivery": "Q2 2026 (Consumer Security Suite)"
+      },
+      
+      "phase_breakdown": [
+        {
+          "phase": "Phase 1: Foundation & RAG Proof-of-Concept",
+          "duration": "Weeks 1-4",
+          "status": "✅ Complete (Sep 2025)",
+          "objectives": [
+            "Establish development environment",
+            "Implement baseline RAG pipeline",
+            "Ingest IEEE-CIS and SEBI data",
+            "Create demo interface"
+          ],
+          "key_deliverables": [
+            "Functional RAG prototype with all-MiniLM-L12-v2",
+            "ChromaDB vector storage with 100K+ entries",
+            "Basic Streamlit UI",
+            "Natural language query capability"
+          ],
+          "success_metrics": {
+            "documents_indexed": "100,000+",
+            "query_response_time": "< 2 seconds",
+            "demo_success": "Queries return relevant results"
+          }
+        },
+        
+        {
+          "phase": "Phase 2: Production-Grade RAG Engine",
+          "duration": "Weeks 5-10",
+          "status": "✅ Complete (Sep 2025)",
+          "objectives": [
+            "Upgrade to production models",
+            "Implement multi-stage retrieval",
+            "Integrate Ollama for local LLM",
+            "Add BGE reranker",
+            "Benchmark performance"
+          ],
+          "key_deliverables": [
+            "Advanced RAG engine with 4-stage pipeline",
+            "Ollama + Llama 3.1 8B integration",
+            "BGE reranker for precision improvement",
+            "Query classification and confidence scoring",
+            "Performance benchmarks (0.19-0.26s)"
+          ],
+          "success_metrics": {
+            "precision_improvement": "30% (reranker)",
+            "query_types": "5 fraud categories",
+            "response_time": "< 3 seconds",
+            "fallback_working": "Yes (template-based)"
+          }
+        },
+        
+        {
+          "phase": "Phase 3: Analyst's Cockpit",
+          "duration": "Weeks 11-15",
+          "status": "✅ Complete (Oct 16, 2025)",
+          "objectives": [
+            "Build production analyst UI",
+            "Implement case management",
+            "Add API key authentication",
+            "Create SAR generation feature",
+            "Build analytics dashboard"
+          ],
+          "key_deliverables": [
+            "SQLite case management (4 tables)",
+            "API key authentication (3 default keys)",
+            "AI-powered SAR generation (< 60s)",
+            "Clickable citations with metadata",
+            "Plotly analytics dashboard",
+            "Comprehensive API (8 endpoints)"
+          ],
+          "success_metrics": {
+            "case_operations": "Full CRUD",
+            "sar_generation_time": "30-60 seconds",
+            "citation_accuracy": "100% source tracing",
+            "dashboard_charts": "3+ visualizations",
+            "api_endpoints": "8 secured"
+          }
+        },
+        
+        {
+          "phase": "Phase 4: GraphRAG & Network Intelligence",
+          "duration": "Weeks 16-21 (6 weeks)",
+          "status": "📋 Planned (Nov-Dec 2025)",
+          "objectives": [
+            "Integrate graph database (NetworkX/Neo4j)",
+            "Build entity extraction pipeline",
+            "Implement GraphRAG queries",
+            "Create network visualizations",
+            "Enable multi-hop relationship queries"
+          ],
+          "key_deliverables": [
+            "Graph database with 500+ entities",
+            "NLP-based entity extraction (spaCy)",
+            "Multi-hop graph traversal (2-3 hops)",
+            "Pyvis network visualizations",
+            "Enhanced RAG with graph context",
+            "Interactive entity exploration UI"
+          ],
+          "success_metrics": {
+            "entities_extracted": "500+",
+            "relationships_mapped": "1000+",
+            "extraction_precision": "80%+",
+            "graph_query_time": "< 0.5s (2-hop)",
+            "visualization_rendering": "< 2s"
+          },
+          "epics": [
+            {
+              "epic": "Graph Database Integration",
+              "tasks": [
+                "Install NetworkX or Neo4j Desktop",
+                "Design graph schema (6 node types, 7 edge types)",
+                "Create GraphManager class",
+                "Test basic graph operations"
+              ],
+              "duration": "Week 1"
+            },
+            {
+              "epic": "Entity Extraction Pipeline",
+              "tasks": [
+                "Set up spaCy NLP pipeline",
+                "Create custom financial domain rules",
+                "Extract entities from SEBI documents",
+                "Populate graph database",
+                "Validate extraction accuracy"
+              ],
+              "duration": "Week 2"
+            },
+            {
+              "epic": "GraphRAG Integration",
+              "tasks": [
+                "Add graph traversal to RAG engine",
+                "Implement multi-hop query expansion",
+                "Combine graph + vector search",
+                "Test enhanced queries",
+                "Benchmark performance"
+              ],
+              "duration": "Weeks 3-4"
+            },
+            {
+              "epic": "Visualization",
+              "tasks": [
+                "Create Pyvis visualization component",
+                "Integrate into Streamlit",
+                "Add interactive filters",
+                "Create case/entity/violation network views",
+                "Polish UI"
+              ],
+              "duration": "Weeks 5-6"
+            }
+          ],
+          "target_completion": "December 13, 2025"
+        },
+        
+        {
+          "phase": "Phase 5: Production Deployment",
+          "duration": "Weeks 22-25 (4 weeks)",
+          "status": "📋 Planned (Q1 2026)",
+          "objectives": [
+            "Deploy to cloud platform (free tier)",
+            "Comprehensive testing",
+            "Finalize documentation",
+            "Performance optimization",
+            "Handoff preparation"
+          ],
+          "key_deliverables": [
+            "Deployed application on Streamlit Cloud or HF Spaces",
+            "Public URL accessible",
+            "Complete test suite (unit + integration + performance)",
+            "Security audit report",
+            "Comprehensive README and docs",
+            "Video demo and tutorials"
+          ],
+          "success_metrics": {
+            "uptime": "99.9%",
+            "monthly_cost": "$0",
+            "test_coverage": "80%+",
+            "documentation_complete": "Yes",
+            "security_audit": "Pass"
+          }
+        },
+        
+        {
+          "phase": "Phase 6: Consumer Security Suite",
+          "duration": "Weeks 26-31 (6 weeks)",
+          "status": "📋 Planned (Q2 2026)",
+          "objectives": [
+            "Build consumer-facing web app",
+            "Implement document analysis",
+            "Create scam message analyzer",
+            "Add educational content",
+            "Launch public application"
+          ],
+          "key_deliverables": [
+            "Mobile-first web application",
+            "Secure document upload and analysis",
+            "Real-time scam message detection",
+            "User education hub (FAQs, guides)",
+            "Public launch with marketing"
+          ],
+          "success_metrics": {
+            "response_time": "< 5 seconds",
+            "mobile_responsive": "Yes",
+            "no_login_required": "Yes",
+            "privacy_preserving": "No data storage",
+            "user_satisfaction": "90%+"
+          }
+        }
+      ]
+    },
+    
+    "dependencies_and_risks": {
+      "external_dependencies": [
+        {
+          "dependency": "Ollama",
+          "criticality": "High",
+          "risk": "If Ollama service is down, LLM generation fails",
+          "mitigation": "Fallback to template-based responses; optional Claude integration"
+        },
+        {
+          "dependency": "SEBI Website",
+          "criticality": "Medium",
+          "risk": "Changes to SEBI website structure may break document scraping",
+          "mitigation": "Manual download workflow; periodic updates"
+        },
+        {
+          "dependency": "HuggingFace Model Hub",
+          "criticality": "Medium",
+          "risk": "Model download failures or deprecated models",
+          "mitigation": "Local model caching; version pinning in requirements.txt"
+        },
+        {
+          "dependency": "Streamlit Community Cloud / HF Spaces",
+          "criticality": "Low (Phase 5)",
+          "risk": "Platform limitations or service outages",
+          "mitigation": "Multi-platform deployment strategy; self-hosted option"
+        }
+      ],
+      
+      "technical_risks": [
+        {
+          "risk": "Graph database performance degradation with large graphs",
+          "probability": "Medium",
+          "impact": "High",
+          "mitigation": [
+            "Use NetworkX for prototyping, migrate to Neo4j if needed",
+            "Implement graph indexing on key properties",
+            "Limit traversal depth to 2-3 hops",
+            "Cache common queries"
+          ]
+        },
+        {
+          "risk": "Entity extraction accuracy below target (< 80%)",
+          "probability": "Medium",
+          "impact": "Medium",
+          "mitigation": [
+            "Fine-tune spaCy on financial domain",
+            "Combine rule-based + ML approaches",
+            "Manual entity curation for critical cases",
+            "Continuous learning from analyst feedback"
+          ]
+        },
+        {
+          "risk": "Memory constraints with large datasets",
+          "probability": "Low",
+          "impact": "Medium",
+          "mitigation": [
+            "Chunked data loading",
+            "Memory profiling and optimization",
+            "Distributed processing (future)",
+            "Resource monitoring and alerts"
+          ]
+        },
+        {
+          "risk": "LLM hallucinations in SAR reports",
+          "probability": "Medium",
+          "impact": "High",
+          "mitigation": [
+            "Strictly ground generation in retrieved evidence",
+            "Temperature tuning (0.3 for factual responses)",
+            "Human-in-the-loop review before submission",
+            "Citation requirements for all claims"
+          ]
+        }
+      ],
+      
+      "business_risks": [
+        {
+          "risk": "Low user adoption by analysts",
+          "probability": "Low",
+          "impact": "High",
+          "mitigation": [
+            "User-centered design with analyst feedback",
+            "Comprehensive training and onboarding",
+            "Demonstrate time savings with case studies",
+            "Iterative improvements based on usage data"
+          ]
+        },
+        {
+          "risk": "Regulatory compliance concerns",
+          "probability": "Low",
+          "impact": "High",
+          "mitigation": [
+            "Legal review of data usage and privacy",
+            "Audit trail for all operations",
+            "Data sovereignty (local deployment)",
+            "Compliance certifications if needed"
+          ]
+        },
+        {
+          "risk": "Competitive alternatives emerge",
+          "probability": "Medium",
+          "impact": "Medium",
+          "mitigation": [
+            "Focus on unique GraphRAG differentiator",
+            "Open-source community engagement",
+            "Continuous feature development",
+            "Strong analyst relationships"
+          ]
+        }
+      ]
+    },
+    
+    "success_metrics_and_kpis": {
+      "product_metrics": [
+        {
+          "metric": "Documents Indexed",
+          "current": "167,000 (SEBI)",
+          "target": "1,000,000+",
+          "measurement": "ChromaDB collection count",
+          "frequency": "Daily"
+        },
+        {
+          "metric": "Query Response Time",
+          "current": "0.5-2 seconds",
+          "target": "< 3 seconds (95th percentile)",
+          "measurement": "API processing_time field",
+          "frequency": "Real-time"
+        },
+        {
+          "metric": "SAR Generation Time",
+          "current": "30-60 seconds",
+          "target": "< 60 seconds",
+          "measurement": "SAR endpoint response time",
+          "frequency": "Per request"
+        },
+        {
+          "metric": "System Uptime",
+          "current": "Not tracked",
+          "target": "99.9% (Phase 5)",
+          "measurement": "Health check monitoring",
+          "frequency": "Continuous"
+        },
+        {
+          "metric": "Concurrent Users",
+          "current": "1-5 (dev)",
+          "target": "50+ (production)",
+          "measurement": "Active sessions",
+          "frequency": "Real-time"
+        }
+      ],
+      
+      "business_metrics": [
+        {
+          "metric": "Time to SAR Generation",
+          "baseline": "7-8 hours (manual)",
+          "target": "< 2 hours (70% reduction)",
+          "measurement": "Case creation to SAR export",
+          "impact": "High - primary value proposition"
+        },
+        {
+          "metric": "Analyst Productivity",
+          "baseline": "5 cases/week",
+          "target": "15+ cases/week (3x improvement)",
+          "measurement": "Cases completed per analyst",
+          "impact": "High - efficiency gain"
+        },
+        {
+          "metric": "Citation Accuracy",
+          "current": "100% (source tracing)",
+          "target": "100% (maintain)",
+          "measurement": "Manual validation of sources",
+          "impact": "High - trust and compliance"
+        },
+        {
+          "metric": "User Satisfaction (Analysts)",
+          "current": "Not measured",
+          "target": "90%+",
+          "measurement": "Post-use surveys (NPS)",
+          "impact": "High - adoption driver"
+        },
+        {
+          "metric": "Cost Savings",
+          "baseline": "$50K/year (manual processing)",
+          "target": "$35K/year savings (70%)",
+          "measurement": "Labor hours * hourly rate",
+          "impact": "High - ROI justification"
+        }
+      ],
+      
+      "technical_metrics": [
+        {
+          "metric": "Retrieval Precision",
+          "current": "~85% (with reranker)",
+          "target": "90%+",
+          "measurement": "Relevance of top-5 results",
+          "impact": "Medium - quality improvement"
+        },
+        {
+          "metric": "Graph Query Performance",
+          "current": "Not implemented",
+          "target": "< 0.5s (2-hop) in Phase 4",
+          "measurement": "Graph traversal time",
+          "impact": "High - Phase 4 success"
+        },
+        {
+          "metric": "Entity Extraction Accuracy",
+          "current": "Not implemented",
+          "target": "80%+ precision in Phase 4",
+          "measurement": "Manual validation of entities",
+          "impact": "Medium - GraphRAG quality"
+        },
+        {
+          "metric": "API Availability",
+          "current": "Not tracked",
+          "target": "99.9%",
+          "measurement": "Uptime monitoring",
+          "impact": "High - reliability"
+        }
+      ],
+      
+      "consumer_metrics_phase6": [
+        {
+          "metric": "Scam Detection Accuracy",
+          "target": "95%+",
+          "measurement": "True positive rate on known scams",
+          "impact": "High - consumer trust"
+        },
+        {
+          "metric": "User Engagement",
+          "target": "10,000+ monthly users",
+          "measurement": "Unique visitors to consumer app",
+          "impact": "High - adoption"
+        },
+        {
+          "metric": "Document Analyzes per Day",
+          "target": "500+",
+          "measurement": "Upload and analysis requests",
+          "impact": "Medium - usage"
+        },
+        {
+          "metric": "Consumer Satisfaction",
+          "target": "90%+",
+          "measurement": "App store ratings / surveys",
+          "impact": "High - retention"
+        }
+      ]
+    },
+    
+    "open_questions_and_decisions": [
+      {
+        "question": "Should we use Neo4j Desktop or NetworkX for graph database?",
+        "options": [
+          {"option": "NetworkX", "pros": ["Easy setup", "In-memory speed", "Python native"], "cons": ["Manual persistence", "Limited scalability"]},
+          {"option": "Neo4j Desktop", "pros": ["Production-grade", "Built-in persistence", "Cypher queries"], "cons": ["More complex setup", "Heavier resource usage"]}
+        ],
+        "recommendation": "Start with NetworkX for rapid Phase 4 prototyping, migrate to Neo4j if graph exceeds 10K nodes",
+        "decision_maker": "Technical Lead",
+        "deadline": "Before Phase 4 Week 1"
+      },
+      {
+        "question": "What deployment platform for Phase 5?",
+        "options": [
+          {"option": "Streamlit Community Cloud", "pros": ["Dead simple deployment", "Free"], "cons": ["No SQLite persistence", "Resource limits"]},
+          {"option": "Hugging Face Spaces", "pros": ["Docker support", "GPU access", "Persistent storage"], "cons": ["Slightly more complex"]}
+        ],
+        "recommendation": "Hugging Face Spaces for full feature support",
+        "decision_maker": "Product Manager",
+        "deadline": "Phase 5 Week 1"
+      },
+      {
+        "question": "Should we open-source the project?",
+        "options": [
+          {"option": "Fully open-source (MIT License)", "pros": ["Community contributions", "Transparency", "Portfolio value"], "cons": ["Competitors can copy"]},
+          {"option": "Proprietary with demo", "pros": ["Competitive advantage", "Monetization potential"], "cons": ["Less community engagement"]}
+        ],
+        "recommendation": "Open-source core engine, keep proprietary add-ons (enterprise features)",
+        "decision_maker": "Stakeholders",
+        "deadline": "Before Phase 5 deployment"
+      },
+      {
+        "question": "How to monetize the consumer app (Phase 6)?",
+        "options": [
+          {"option": "Freemium (ads + premium tier)", "pros": ["Revenue stream"], "cons": ["User experience degradation"]},
+          {"option": "Completely free (non-profit)", "pros": ["Maximum social impact"], "cons": ["No revenue"]},
+          {"option": "B2B licensing", "pros": ["Higher revenue per customer"], "cons": ["Different target market"]}
+        ],
+        "recommendation": "Free for consumers, B2B licensing for enterprise analyst tool",
+        "decision_maker": "Business Lead",
+        "deadline": "Phase 6 planning"
+      }
+    ],
+    
+    "conclusion": {
+      "project_status": "50% Complete - On Track",
+      "phases_completed": "3/6 (Foundation, Production RAG, Analyst Cockpit)",
+      "next_phase": "Phase 4: GraphRAG & Network Intelligence (Nov-Dec 2025)",
+      "estimated_full_completion": "Q2 2026",
+      
+      "key_achievements_to_date": [
+        "167,000 SEBI documents indexed and searchable",
+        "Advanced RAG pipeline with 4-stage retrieval",
+        "Ollama + Llama 3.1 8B local LLM integration",
+        "SQLite case management system with full CRUD",
+        "AI-powered SAR generation in under 60 seconds",
+        "Production-ready analyst cockpit UI",
+        "API key authentication and secured endpoints",
+        "0.5-2 second query response times",
+        "30% precision improvement with BGE reranker"
+      ],
+      
+      "remaining_work": [
+        "Phase 4: Implement GraphRAG with entity extraction and network visualization (6 weeks)",
+        "Phase 5: Deploy to cloud platform and finalize documentation (4 weeks)",
+        "Phase 6: Build consumer-facing security suite (6 weeks)"
+      ],
+      
+      "risks_and_mitigation": "Primary risks include graph database performance, entity extraction accuracy, and LLM hallucinations. All risks have documented mitigation strategies and fallback options.",
+      
+      "recommendation": "Proceed with Phase 4 implementation as planned. GraphRAG is the key differentiator and will unlock relationship-aware fraud detection capabilities. Target completion: December 2025."
+    }
+  }
+}
+
