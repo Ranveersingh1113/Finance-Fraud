@@ -310,38 +310,89 @@ class AMLSimGraphManager(GraphManager):
         logger.info(f"Detected {len(fan_in_patterns)} fan-in patterns")
         return fan_in_patterns
     
-    def trace_money_flow(self, start_account: str, max_hops: int = 5) -> Dict[str, Any]:
+    def trace_money_flow(self, start_account: str, max_hops: int = 3) -> Dict[str, Any]:
         """
-        Trace money flow from an account through the network.
+        Trace money flow from a specific account (ONLY outgoing transactions).
         
         Args:
-            start_account: Starting account ID
-            max_hops: Maximum hops to trace
+            start_account: Starting account ID (e.g., 'account_631')
+            max_hops: Maximum hops to trace (default 3 for performance)
             
         Returns:
-            Money flow trace with paths and amounts
+            Money flow trace with paths and amounts FROM this account only
         """
-        result = self.multi_hop_query(start_account, max_hops=max_hops)
+        if start_account not in self.graph:
+            return {
+                'start_account': start_account,
+                'error': 'Account not found',
+                'total_sent': 0,
+                'total_received': 0,
+                'net_flow': 0,
+                'paths': [],
+                'accounts_reached': 0,
+                'paths_found': 0
+            }
         
-        # Calculate total amounts in flow
+        # Track ONLY direct transactions FROM this account (1-hop)
+        direct_sent = []
+        direct_received = []
         total_sent = 0
         total_received = 0
         
-        for rel in result['relationships']:
-            if rel['source'] == start_account:
-                total_sent += rel['properties'].get('amount', 0)
-            if rel['target'] == start_account:
-                total_received += rel['properties'].get('amount', 0)
+        # Get all edges FROM this account (SENT_TO relationships)
+        if start_account in self.graph:
+            for neighbor in self.graph.neighbors(start_account):
+                edges = self.graph[start_account][neighbor]
+                for edge_data in edges.values():
+                    if edge_data.get('relationship') == 'SENT_TO':
+                        amount = edge_data.get('amount', 0)
+                        total_sent += amount
+                        direct_sent.append({
+                            'to': neighbor,
+                            'amount': amount,
+                            'timestamp': edge_data.get('timestamp', 0)
+                        })
+        
+        # Get all edges TO this account (RECEIVED_FROM relationships)
+        for predecessor in self.graph.predecessors(start_account):
+            edges = self.graph[predecessor][start_account]
+            for edge_data in edges.values():
+                if edge_data.get('relationship') == 'SENT_TO':  # They SENT_TO us
+                    amount = edge_data.get('amount', 0)
+                    total_received += amount
+                    direct_received.append({
+                        'from': predecessor,
+                        'amount': amount,
+                        'timestamp': edge_data.get('timestamp', 0)
+                    })
+        
+        # Build readable paths (limit to top 10 by amount)
+        outgoing_paths = []
+        for txn in sorted(direct_sent, key=lambda x: x['amount'], reverse=True)[:10]:
+            outgoing_paths.append(f"{start_account} → {txn['to']} (${txn['amount']:,.2f})")
+        
+        incoming_paths = []
+        for txn in sorted(direct_received, key=lambda x: x['amount'], reverse=True)[:10]:
+            incoming_paths.append(f"{txn['from']} → {start_account} (${txn['amount']:,.2f})")
+        
+        # Determine unique accounts reached (1-hop only for clarity)
+        accounts_reached = set()
+        accounts_reached.update([txn['to'] for txn in direct_sent])
+        accounts_reached.update([txn['from'] for txn in direct_received])
         
         return {
             'start_account': start_account,
-            'total_hops': max_hops,
-            'accounts_reached': result['total_nodes'],
-            'paths_found': result['total_paths'],
+            'total_hops': 1,  # Changed to 1-hop for accuracy
+            'accounts_reached': len(accounts_reached),
+            'paths_found': len(direct_sent) + len(direct_received),
             'total_sent': total_sent,
             'total_received': total_received,
             'net_flow': total_sent - total_received,
-            'paths': result['paths'][:10]  # Limit to top 10 paths
+            'outgoing_count': len(direct_sent),
+            'incoming_count': len(direct_received),
+            'paths': outgoing_paths + incoming_paths,  # Readable path strings
+            'top_outgoing': direct_sent[:10],
+            'top_incoming': direct_received[:10]
         }
     
     def get_amlsim_statistics(self) -> Dict[str, Any]:

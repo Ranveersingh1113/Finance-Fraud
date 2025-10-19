@@ -267,17 +267,17 @@ def display_advanced_search():
         submitted = st.form_submit_button("🧠 Intelligent Search", use_container_width=True)
     
     if submitted and query:
-        with st.spinner("🧠 Analyzing with Ollama + Advanced RAG..."):
+        with st.spinner("🧠 Analyzing with Unified GraphRAG (SEBI + AMLSim)..."):
             start_time = time.time()
             
-            # Make advanced query to the API
+            # Make unified GraphRAG query to the API
             query_data = {
                 "query": query,
                 "n_results": n_results,
                 "include_metadata": True
             }
             
-            result = make_api_request("/query", data=query_data, method="POST")
+            result = make_api_request("/query/unified", data=query_data, method="POST")
             
             processing_time = time.time() - start_time
             

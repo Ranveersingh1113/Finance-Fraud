@@ -71,6 +71,7 @@ app.add_middleware(
 rag_engine = None
 data_ingestion = None
 case_manager = None
+unified_engine = None  # Unified GraphRAG engine (initialized once!)
 
 
 class QueryRequest(BaseModel):
@@ -121,7 +122,7 @@ class CaseResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialize the application on startup."""
-    global rag_engine, data_ingestion, case_manager
+    global rag_engine, data_ingestion, case_manager, unified_engine
     
     try:
         logger.info("Initializing Advanced Financial Intelligence Platform...")
@@ -156,6 +157,21 @@ async def startup_event():
                 logger.info("SEBI data indexed successfully")
             else:
                 logger.warning("No SEBI data found. Please run the data pipeline first.")
+        
+        # Initialize Unified GraphRAG Engine (once on startup for performance!)
+        logger.info("Initializing Unified GraphRAG Engine...")
+        try:
+            from src.core.unified_graphrag_engine import UnifiedGraphRAGEngine
+            unified_engine = UnifiedGraphRAGEngine(
+                persist_directory="./data/graphs",
+                chroma_directory="./data/chroma_db",
+                ollama_model="llama3.1:8b"
+            )
+            logger.info("Unified GraphRAG Engine initialized with cached patterns")
+        except Exception as e:
+            logger.warning(f"Unified engine initialization failed: {e}")
+            logger.warning("Unified GraphRAG queries will not be available")
+            unified_engine = None
         
         logger.info("Advanced application startup completed successfully")
         
@@ -253,6 +269,90 @@ async def query_rag_engine(request: QueryRequest, api_key: str = Depends(get_api
     except Exception as e:
         logger.error(f"Query error: {e}")
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+
+@app.post("/query/unified")
+async def query_unified_graphrag(request: QueryRequest, api_key: str = Depends(get_api_key)):
+    """
+    Query the unified GraphRAG engine (SEBI + AMLSim knowledge graphs).
+    
+    This endpoint combines:
+    - SEBI regulatory knowledge graph
+    - AMLSim transaction network graph
+    - ChromaDB vector retrieval
+    - LLM-powered answer generation
+    - PRE-COMPUTED fraud pattern cache (instant queries!)
+    
+    Requires API key authentication.
+    """
+    try:
+        if not unified_engine:
+            raise HTTPException(
+                status_code=503, 
+                detail="Unified GraphRAG engine not initialized. Please restart the API server."
+            )
+        
+        logger.info(f"Unified query received: {request.query}")
+        start_time = datetime.now()
+        
+        # Execute unified query (using global cached instance - FAST!)
+        result = await unified_engine.unified_query(
+            query=request.query,
+            use_graphs=True,
+            n_results=request.n_results
+        )
+        
+        processing_time = (datetime.now() - start_time).total_seconds()
+        
+        # Flatten evidence for Streamlit compatibility
+        evidence = []
+        rank = 1
+        
+        # Add SEBI results
+        for doc in result.get('sebi_results', [])[:5]:
+            evidence.append({
+                "rank": rank,
+                "score": doc.get('score', 0),
+                "document": doc.get('document', '')[:500] + "..." if len(doc.get('document', '')) > 500 else doc.get('document', ''),
+                "source": "sebi_regulation",
+                "metadata": doc.get('metadata', {})
+            })
+            rank += 1
+        
+        # Add AMLSim results
+        for doc in result.get('amlsim_results', [])[:5]:
+            evidence.append({
+                "rank": rank,
+                "score": doc.get('score', 0),
+                "document": doc.get('document', '')[:500] + "..." if len(doc.get('document', '')) > 500 else doc.get('document', ''),
+                "source": "amlsim_transaction",
+                "metadata": doc.get('metadata', {})
+            })
+            rank += 1
+        
+        # Format response (compatible with Streamlit display)
+        return {
+            "query": request.query,
+            "answer": result.get('answer', ''),
+            "confidence_score": result.get('confidence', 0.8),
+            "query_type": result.get('query_type', 'unknown'),
+            "processing_time": processing_time,
+            "evidence": evidence,
+            "metadata": {
+                "model_used": "unified_graphrag",
+                "graphs_loaded": True,
+                "pattern_cache_used": True,
+                "cross_domain_matches": result.get('cross_domain_patterns', 0),
+                "sebi_entities_found": len(result.get('sebi_entities', [])),
+                "amlsim_patterns_found": len(result.get('amlsim_patterns', []))
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Unified query error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Unified query failed: {str(e)}")
 
 
 @app.get("/query/simple")

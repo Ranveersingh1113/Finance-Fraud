@@ -107,8 +107,8 @@ ollama list
 
 ### No SEBI Data
 ```bash
-# Process SEBI documents
-python test_complete_sebi_pipeline.py
+# Rebuild SEBI ChromaDB with all documents
+python rebuild_sebi_chromadb.py
 ```
 
 ---
@@ -177,12 +177,12 @@ GET    /cases/{id}/sar          - Get SARs
 
 | Document | Purpose |
 |----------|---------|
-| **PHASE3_STARTUP_GUIDE.md** | Complete startup & testing guide |
-| **PHASE3_COMPLETION_SUMMARY.md** | What was built in Phase 3 |
+| **README.md** | Project overview & quick start |
+| **SETUP_GUIDE.md** | Complete setup instructions |
+| **QUICK_REFERENCE.md** | This document - command reference |
 | **PROGRESS_TRACKING.md** | Overall project progress |
+| **RAG_CLASSIFICATION_FIX_SUMMARY.md** | Document classification details |
 | **IMPLEMENTATION_ROADMAP.md** | All 6 phases roadmap |
-| **README.md** | Project overview |
-| **QUICK_REFERENCE.md** | This document |
 
 ---
 
@@ -214,11 +214,11 @@ GET    /cases/{id}/sar          - Get SARs
 - **Phase 1:** ✅ Complete (Foundation & RAG PoC)
 - **Phase 2:** ✅ Complete (Production RAG Engine)
 - **Phase 3:** ✅ Complete (Analyst's Cockpit)
-- **Phase 4:** 📋 Next (GraphRAG & Network Intelligence)
-- **Phase 5:** 📋 Future (Production Deployment)
+- **Phase 4:** ✅ Complete (GraphRAG & Network Intelligence)
+- **Phase 5:** 📋 Next (Production Deployment)
 - **Phase 6:** 📋 Future (Consumer Security Suite)
 
-**Overall Progress: 50% Complete**
+**Overall Progress: 67% Complete (4/6 Phases)**
 
 ---
 
@@ -266,8 +266,9 @@ del data\cases.db
 # Then delete the directory
 rmdir /s data\chroma_db
 
-# Rerun data processing
-python test_complete_sebi_pipeline.py
+# Rebuild from scratch
+python rebuild_sebi_chromadb.py
+python index_amlsim_documents.py
 ```
 
 ---
@@ -284,14 +285,19 @@ python start_advanced_api.py
 # Start UI (new terminal)
 python start_advanced_streamlit.py
 
-# Process SEBI data
-python test_complete_sebi_pipeline.py
+# Build/rebuild knowledge graphs
+python build_sebi_knowledge_graph.py
+python build_amlsim_graph.py
 
-# Test RAG engine
-python test_advanced_rag.py
+# Rebuild ChromaDB
+python rebuild_sebi_chromadb.py
+python index_amlsim_documents.py
 
-# Test API
-python test_advanced_api.py
+# Test unified system
+python test_unified_graphrag.py
+
+# Process new SEBI documents
+python process_additional_sebi_docs.py
 
 # Check Ollama models
 ollama list
@@ -302,8 +308,8 @@ ollama pull llama3.1:8b
 
 ---
 
-**Last Updated:** October 16, 2025
-**Version:** Phase 3 Complete
-**Status:** Production Ready
+**Last Updated:** October 19, 2025
+**Version:** Phase 4 Complete
+**Status:** Production Ready - Dual GraphRAG System
 
 
