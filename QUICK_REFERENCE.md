@@ -52,7 +52,7 @@ curl -H "X-API-Key: dev-api-key" http://localhost:8001/cases
 
 ### Source Data
 - **SEBI Docs:** `./data/sebi/*.pdf`
-- **Transactions:** `./data/ieee_cis/*.csv`
+- **AMLSim Data:** `./data/amlsim/` (Phase 4)
 
 ---
 

@@ -45,13 +45,26 @@ class SEBIFileProcessor:
         # Supported file extensions
         self.supported_extensions = {'.pdf', '.txt', '.doc', '.docx'}
         
-        # Document type mapping based on file patterns
+        # Document type mapping based on file patterns (ORDER MATTERS - check regulations first!)
         self.document_type_patterns = {
-            'adjudication_order': [
-                r'adjudication.*order',
-                r'ao.*\d{4}',
-                r'order.*\d{4}',
-                r'adjudicating.*officer'
+            'regulation': [
+                r'gazette.*india',
+                r'notification.*mumbai',
+                r'securities.*exchange.*board.*india.*notification',
+                r'sebi.*notification',
+                r'\bpmla\b',
+                r'prevention.*money.*laundering.*act',
+                r'\bpit\s+regulations',
+                r'prohibition.*insider.*trading.*regulations',
+                r'\bpfutp\b',
+                r'prohibition.*fraudulent.*unfair.*trade.*practices',
+                r'\blodr\b',
+                r'listing.*obligations.*disclosure.*requirements',
+                r'sebi.*\(.*regulations.*\,.*\d{4}',  # SEBI (Something) Regulations, 20XX
+                r'faqs?\s+for.*regulations',
+                r'master.*circular',
+                r'circular.*sebi/ho',
+                r'cir/[a-z]{2,5}/[a-z]{2,5}',  # CIR/ISD/AML pattern
             ],
             'investigation_report': [
                 r'investigation.*report',
@@ -59,11 +72,12 @@ class SEBIFileProcessor:
                 r'committee.*report',
                 r'fact.*finding'
             ],
-            'press_release': [
-                r'press.*release',
-                r'media.*release',
-                r'circular',
-                r'advisory'
+            'adjudication_order': [
+                r'adjudication.*order',
+                r'ao.*\d{4}',
+                r'order.*\d{4}',
+                r'adjudicating.*officer',
+                r'before.*adjudicating.*officer'
             ]
         }
     
@@ -259,17 +273,105 @@ class SEBIFileProcessor:
         return '\n'.join(cleaned_lines)
     
     def _determine_document_type(self, filename: str, content: str) -> str:
-        """Determine document type based on filename and content."""
-        filename_lower = filename.lower()
+        """
+        Determine document type with prioritized classification logic.
+        
+        Strategy:
+        1. Check for STRONG indicators of adjudication orders first
+        2. Then check for STRONG indicators of regulations
+        3. Fall back to weaker patterns
+        """
         content_lower = content.lower()
+        content_first_500 = content[:500].lower()  # Check document header
         
-        # Check each document type pattern
-        for doc_type, patterns in self.document_type_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, filename_lower) or re.search(pattern, content_lower):
-                    return doc_type
+        # PRIORITY 1: Strong indicators of adjudication orders (check first 500 chars)
+        strong_order_indicators = [
+            r'before\s+the\s+adjudicating\s+officer',
+            r'adjudication\s+order\s+(?:in\s+)?(?:the\s+)?(?:matter|respect)',
+            r'adjudication\s+order\s+no',
+            r'\[adjudication\s+order\s+no',
+        ]
         
-        # Default to adjudication order if no pattern matches
+        for pattern in strong_order_indicators:
+            if re.search(pattern, content_first_500):
+                return 'adjudication_order'
+        
+        # PRIORITY 2: Strong indicators of regulations (must be near the start)
+        strong_regulation_indicators = [
+            r'^.*gazette\s+of\s+india.*extraordinary',  # Official Gazette
+            r'^.*published\s+by\s+authority.*securities.*exchange.*board',  # SEBI Notification
+            r'^.*prevention\s+of\s+money.*laundering.*act.*2002',  # PMLA Act
+            r'sebi\s*\([^)]+\)\s+regulations[,\s]+\d{4}',  # SEBI (XYZ) Regulations, 20XX
+        ]
+        
+        for pattern in strong_regulation_indicators:
+            if re.search(pattern, content_first_500, re.IGNORECASE):
+                return 'regulation'
+        
+        # PRIORITY 3: Check for Master Circulars and FAQs
+        circular_indicators = [
+            r'master\s+circular',
+            r'circular\s+sebi/ho',
+            r'cir/[a-z]{2,5}/[a-z]{2,5}/\d',
+            r'faqs?\s+for\s+(?:sebi\s+)?\(?[a-z\s]+\)?\s+regulations',
+        ]
+        
+        for pattern in circular_indicators:
+            if re.search(pattern, content_first_500):
+                return 'regulation'
+        
+        # PRIORITY 4: Check full content for regulation keywords (but be more strict)
+        # Only classify as regulation if multiple indicators are present
+        regulation_score = 0
+        
+        if re.search(r'notification.*sebi', content_lower):
+            regulation_score += 2
+        if re.search(r'\bgazette\b.*\bindia\b', content_lower):
+            regulation_score += 2
+        if re.search(r'published\s+by\s+authority', content_lower):
+            regulation_score += 2
+        if re.search(r'sebi\s*\([^)]+\)\s+regulations', content_lower):
+            regulation_score += 1
+        if re.search(r'\bpmla\b|\bpit\b|\blodr\b|\bpfutp\b', content_lower):
+            regulation_score += 1
+        
+        # Need at least 3 points to be classified as regulation
+        if regulation_score >= 3:
+            return 'regulation'
+        
+        # PRIORITY 5: Check for weaker adjudication order indicators
+        weak_order_indicators = [
+            r'adjudication.*order',
+            r'adjudicating.*officer',
+            r'noticee',
+            r'show.*cause.*notice',
+            r'matter\s+of.*(?:insider\s+trading|market\s+manipulation)',
+        ]
+        
+        order_matches = sum(1 for pattern in weak_order_indicators 
+                           if re.search(pattern, content_lower))
+        
+        if order_matches >= 2:
+            return 'adjudication_order'
+        
+        # PRIORITY 6: Check for investigation reports
+        if re.search(r'investigation.*report|inquiry.*report', content_lower):
+            return 'investigation_report'
+        
+        # Default: If still unclear, use keyword density
+        # Adjudication orders typically have more case-specific language
+        order_keywords = ['penalty', 'noticee', 'alleged', 'violation', 'directed']
+        regulation_keywords = ['notification', 'prescribed', 'regulation', 'shall', 'schedule']
+        
+        order_count = sum(content_lower.count(kw) for kw in order_keywords)
+        regulation_count = sum(content_lower.count(kw) for kw in regulation_keywords)
+        
+        if order_count > regulation_count * 2:
+            return 'adjudication_order'
+        elif regulation_count > order_count * 2:
+            return 'regulation'
+        
+        # Final default: adjudication order (most common type)
         return 'adjudication_order'
     
     def _extract_document_metadata(self, content: str) -> Dict[str, Any]:

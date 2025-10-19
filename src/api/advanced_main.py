@@ -139,16 +139,23 @@ async def startup_event():
         case_manager = CaseManager(db_path="./data/cases.db")
         logger.info("Case manager initialized")
         
-        # Load existing SEBI data
-        logger.info("Loading SEBI data...")
-        sebi_chunks = data_ingestion.load_processed_sebi_chunks()
+        # Check if SEBI data already exists in ChromaDB
+        logger.info("Checking SEBI data in ChromaDB...")
+        existing_count = rag_engine.sebi_collection.count()
         
-        if sebi_chunks:
-            logger.info(f"Adding {len(sebi_chunks)} SEBI chunks to advanced RAG engine...")
-            rag_engine.add_sebi_chunks(sebi_chunks)
-            logger.info("SEBI data indexed successfully")
+        if existing_count > 0:
+            logger.info(f"Found {existing_count} existing SEBI documents in ChromaDB - skipping reload")
         else:
-            logger.warning("No SEBI data found. Please run the data pipeline first.")
+            # Load existing SEBI data from processed chunks
+            logger.info("Loading SEBI data from processed chunks...")
+            sebi_chunks = data_ingestion.load_processed_sebi_chunks()
+            
+            if sebi_chunks:
+                logger.info(f"Adding {len(sebi_chunks)} SEBI chunks to advanced RAG engine...")
+                rag_engine.add_sebi_chunks(sebi_chunks)
+                logger.info("SEBI data indexed successfully")
+            else:
+                logger.warning("No SEBI data found. Please run the data pipeline first.")
         
         logger.info("Advanced application startup completed successfully")
         

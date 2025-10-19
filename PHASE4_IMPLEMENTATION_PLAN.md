@@ -6,20 +6,20 @@
 
 ---
 
-## 🎯 Vision: Complete Platform with V-Feature Clustering (Vision C)
+## 🎯 Vision: Complete Platform with AMLSim Transaction Network
 
 ### What We're Building:
 ```
 Dual GraphRAG System:
 ├─ SEBI Regulatory Intelligence
 │  └─ Entity graph: Companies → Violations → Regulators
-├─ IEEE-CIS Transaction Intelligence (V-Feature Clustering)
-│  ├─ 500K+ transaction documents
-│  ├─ Behavioral clusters (Fraud_Ring_Pattern, etc.)
-│  └─ Network graph: Cards → Devices → Emails
+├─ AMLSim Transaction Network Intelligence
+│  ├─ Account → Transaction → Account relationships
+│  ├─ Money laundering pattern detection
+│  └─ Network graph: Accounts → Transactions → Alert Types
 └─ Unified Cross-Domain Analysis
-   ├─ Query both knowledge bases
-   ├─ Fraud ring detection
+   ├─ Query both knowledge bases (SEBI + AMLSim)
+   ├─ Money laundering ring detection
    └─ Interactive visualization
 ```
 
@@ -84,53 +84,57 @@ SEBI Graph Statistics:
 
 ---
 
-### 🔧 Week 3-4: IEEE-CIS Transaction Intelligence
+### 🔧 Week 3-4: AMLSim Transaction Network Intelligence
 
-**Goal:** Generate transaction documents with V-clustering and build transaction graph
+**Goal:** Integrate AMLSim data and build transaction network graph for money laundering detection
 
-#### Part A: Enhanced V-Feature Clustering (Week 3)
-- [ ] Review existing clustering code in `src/data/ingestion.py`
-- [ ] Enhance cluster naming with fraud-specific profiles
-- [ ] Calculate fraud rate per cluster
-- [ ] Create detailed cluster descriptions
-- [ ] Generate cluster analysis report
-- [ ] Validate clustering quality
+#### Part A: AMLSim Data Understanding (Week 3)
+- [ ] Research AMLSim data structure and schema
+- [ ] Understand account, transaction, and alert types
+- [ ] Map AMLSim relationships to graph schema
+- [ ] Identify money laundering patterns in AMLSim
+- [ ] Design AMLSim graph schema (Account → Transaction → Account)
+- [ ] Plan alert type integration
 
-#### Part B: Transaction Document Generation (Week 3-4)
-- [ ] Create `TransactionDocumentGenerator` class
-- [ ] Implement comprehensive document template
-- [ ] Include V-cluster intelligence in documents
-- [ ] Process all IEEE-CIS transactions (~500K)
-- [ ] Generate natural language descriptions
-- [ ] Index documents in ChromaDB
+#### Part B: AMLSim Data Loading & Processing (Week 3)
+- [ ] Create `AMLSimDataLoader` class
+- [ ] Load AMLSim transaction data (accounts.csv, transactions.csv, alerts.csv)
+- [ ] Parse account relationships and transaction flows
+- [ ] Extract alert patterns and typologies
+- [ ] Create transaction description templates
+- [ ] Generate natural language documents from AMLSim data
 
-#### Part C: Transaction Network Graph (Week 4)
-- [ ] Create `TransactionGraphManager` class
-- [ ] Build Card nodes with properties
-- [ ] Build Device nodes with properties
-- [ ] Build Email nodes with properties
-- [ ] Create USED_ON relationships
-- [ ] Add behavioral_cluster properties to edges
-- [ ] Implement fraud ring detection algorithm
+#### Part C: AMLSim Transaction Network Graph (Week 4)
+- [ ] Create `AMLSimGraphManager` class
+- [ ] Build Account nodes with properties (account_id, balance, type)
+- [ ] Build Transaction nodes with properties (amount, date, pattern)
+- [ ] Build Alert nodes for suspicious patterns
+- [ ] Create SENT_TO relationships (Account → Account)
+- [ ] Create TRIGGERED relationships (Transaction → Alert)
+- [ ] Implement money laundering pattern detection
+- [ ] Detect layering, structuring, and fan-in/fan-out patterns
 - [ ] Test graph queries
 
 #### Expected Output:
 ```
-Transaction Intelligence:
-- Documents: 500K+ indexed in ChromaDB
-- Clusters: 8-10 behavioral profiles with fraud rates
+AMLSim Transaction Intelligence:
 - Transaction Graph:
-  * Nodes: 50K+ (Cards, Devices, Emails)
-  * Edges: 500K+ (transactions)
-  * Properties: behavioral_cluster, fraud_rate
-- Fraud Rings Detected: ~100+ suspicious patterns
+  * Nodes: Account nodes + Transaction nodes + Alert nodes
+  * Edges: SENT_TO, RECEIVED_FROM, TRIGGERED
+  * Properties: alert_type, transaction_pattern, risk_score
+- Money Laundering Patterns Detected:
+  * Fan-out (single account → multiple accounts)
+  * Fan-in (multiple accounts → single account)
+  * Cycle (circular transactions)
+  * Layering chains
+- Documents: Natural language transaction descriptions indexed in ChromaDB
 ```
 
 ---
 
 ### 🔧 Week 5-6: Unified GraphRAG & Visualization
 
-**Goal:** Combine SEBI + IEEE-CIS into unified system with visualization
+**Goal:** Combine SEBI + AMLSim into unified system with visualization
 
 #### Part A: Unified GraphRAG Engine (Week 5)
 - [ ] Create `UnifiedGraphRAGEngine` class
@@ -167,11 +171,11 @@ Transaction Intelligence:
 #### Expected Output:
 ```
 Complete GraphRAG Platform:
-- Dual knowledge graphs (SEBI + IEEE-CIS)
+- Dual knowledge graphs (SEBI + AMLSim)
 - Unified query system
 - Interactive visualizations
-- Fraud ring detection
-- Cross-domain intelligence
+- Money laundering pattern detection
+- Cross-domain intelligence (Regulatory + Transactional)
 - Production-ready system
 ```
 
@@ -182,30 +186,33 @@ Complete GraphRAG Platform:
 ```
 src/
 ├── core/
-│   ├── graph_manager.py               ✅ NEW - Base graph operations
-│   ├── sebi_graph_manager.py          ✅ NEW - SEBI knowledge graph
-│   ├── transaction_graph_manager.py   ✅ NEW - Transaction network
-│   ├── unified_graphrag_engine.py     ✅ NEW - Combined system
-│   ├── advanced_rag_engine.py         📝 ENHANCE - Add graph integration
-│   └── case_manager.py                📝 ENHANCE - Link to graphs
+│   ├── graph_manager.py               ✅ CREATED - Base graph operations
+│   ├── sebi_graph_manager.py          ✅ CREATED - SEBI knowledge graph
+│   ├── amlsim_graph_manager.py        ⏳ NEW - AMLSim transaction network
+│   ├── unified_graphrag_engine.py     ⏳ NEW - Combined system
+│   ├── advanced_rag_engine.py         ⏳ ENHANCE - Add graph integration
+│   └── case_manager.py                ⏳ ENHANCE - Link to graphs
 │
 ├── data/
-│   ├── entity_extractor.py            ✅ NEW - NLP entity extraction
-│   ├── transaction_document_generator.py ✅ NEW - Transaction → docs
-│   ├── ingestion.py                   📝 ENHANCE - V-clustering
+│   ├── entity_extractor.py            ✅ CREATED - NLP entity extraction
+│   ├── amlsim_loader.py               ⏳ NEW - AMLSim data loading
+│   ├── amlsim_document_generator.py   ⏳ NEW - Transaction → docs
+│   ├── ingestion.py                   (existing - keep for reference)
 │   └── sebi_processor.py              (existing)
 │
 ├── frontend/
-│   └── advanced_streamlit_app.py      📝 ENHANCE - Add graph view
+│   └── advanced_streamlit_app.py      ⏳ ENHANCE - Add graph view
 │
 └── api/
-    └── advanced_main.py                📝 ENHANCE - Add graph endpoints
+    └── advanced_main.py                ⏳ ENHANCE - Add graph endpoints
 
 data/
-├── graphs/                             ✅ NEW - Persist graphs
-│   ├── sebi_graph.gpickle
-│   └── transaction_graph.gpickle
-└── (existing data directories)
+├── graphs/                             ✅ CREATED
+│   ├── sebi_knowledge_graph.gpickle   ✅ Built (20K nodes)
+│   ├── amlsim_transaction_graph.gpickle ⏳ To be built
+│   └── *.json                          ✅ Export formats
+├── amlsim/                             ⏳ NEW - AMLSim data directory
+└── (existing directories)
 ```
 
 ---
