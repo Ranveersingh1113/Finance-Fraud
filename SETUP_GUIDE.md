@@ -114,7 +114,7 @@ The project comes with **229 pre-downloaded SEBI documents**:
 
 **Build the SEBI graph:**
 ```bash
-python build_sebi_knowledge_graph.py
+python scripts/setup/build_sebi_knowledge_graph.py
 ```
 
 **Expected output:**
@@ -145,7 +145,7 @@ The project includes **pre-generated AMLSim data** in `data/amlsim/`:
 
 **Build the AMLSim graph:**
 ```bash
-python build_amlsim_graph.py
+python scripts/setup/build_amlsim_graph.py
 ```
 
 **Expected output:**
@@ -164,7 +164,7 @@ Graph Statistics:
 
 **Indexing to ChromaDB:**
 ```bash
-python index_amlsim_documents.py
+python scripts/maintenance/index_amlsim_documents.py
 ```
 
 This generates natural language documents from transactions and indexes them for RAG queries.
@@ -185,7 +185,7 @@ You need **TWO terminal windows** (both with virtual environment activated):
 source financevenv/bin/activate  # macOS/Linux
 
 # Start API
-python start_advanced_api.py
+python start_api.py
 ```
 
 Wait for:
@@ -202,7 +202,7 @@ INFO: Application startup complete
 source financevenv/bin/activate  # macOS/Linux
 
 # Start UI
-python start_advanced_streamlit.py
+python start_ui.py
 ```
 
 Wait for:
@@ -247,7 +247,7 @@ python test_unified_graphrag.py
 
 3. **Process documents:**
 ```bash
-python process_additional_sebi_docs.py
+python scripts/maintenance/process_additional_sebi_docs.py
 ```
 
 This will:
@@ -271,7 +271,7 @@ Check the output to ensure correct classification:
 
 If documents are misclassified or you need to update the database:
 ```bash
-python rebuild_sebi_chromadb.py
+python scripts/maintenance/rebuild_sebi_chromadb.py
 ```
 
 This rebuilds the entire `sebi_documents_advanced` collection with correct classifications.
@@ -280,13 +280,13 @@ This rebuilds the entire `sebi_documents_advanced` collection with correct class
 
 If you want to generate fresh transaction data:
 ```bash
-python generate_amlsim_compatible_data.py
+python scripts/setup/generate_amlsim_compatible_data.py
 ```
 
 Then rebuild the graph:
 ```bash
-python build_amlsim_graph.py
-python index_amlsim_documents.py
+python scripts/setup/build_amlsim_graph.py
+python scripts/maintenance/index_amlsim_documents.py
 ```
 
 ---
@@ -311,15 +311,15 @@ pip install -r requirements.txt
 #### 3. "ChromaDB collection not found"
 **Solution:** Rebuild ChromaDB
 ```bash
-python rebuild_sebi_chromadb.py
-python index_amlsim_documents.py
+python scripts/maintenance/rebuild_sebi_chromadb.py
+python scripts/maintenance/index_amlsim_documents.py
 ```
 
 #### 4. "Graph file not found"
 **Solution:** Build knowledge graphs
 ```bash
-python build_sebi_knowledge_graph.py
-python build_amlsim_graph.py
+python scripts/setup/build_sebi_knowledge_graph.py
+python scripts/setup/build_amlsim_graph.py
 ```
 
 #### 5. "Port already in use" (8001 or 8501)
