@@ -288,7 +288,11 @@ class UnifiedGraphRAGEngine:
             # Step 3: Execute query plan
             results = await self._execute_query_plan(query_plan)
             
-            # Step 4: Format response
+            # Step 4: Format response (unless already formatted for account trace)
+            if query_plan['is_account_trace']:
+                # Account trace already returns formatted response
+                return results
+            
             return await self._format_unified_response(results, query_plan)
             
         except ValueError as e:
