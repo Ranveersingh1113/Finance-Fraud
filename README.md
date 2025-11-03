@@ -97,19 +97,25 @@ ls data/chroma_db/
 
 4. **Launch the application:**
 
-**Terminal 1 - Start API Server:**
+**Easy Way (Recommended):**
 ```bash
-python start_api.py
+.\scripts\start_system.ps1
 ```
 
-**Terminal 2 - Start UI:**
+**Or manually (2 terminals):**
 ```bash
+# Terminal 1
+python start_api.py
+
+# Terminal 2
 python start_ui.py
 ```
 
-Access at:
+**Access at:**
 - **UI:** http://localhost:8501
 - **API Docs:** http://localhost:8001/docs
+
+See **STARTUP_GUIDE.md** for complete startup instructions.
 
 ## 📊 Knowledge Graphs
 

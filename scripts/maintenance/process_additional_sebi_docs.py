@@ -16,8 +16,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent / "src"))
+# Add project root to path (go up 2 levels from scripts/maintenance/)
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.data.sebi_file_processor import SEBIFileProcessor
 from src.data.sebi_processor import SEBIProcessor

@@ -8,14 +8,14 @@
 ```bash
 cd "D:\OneDrive\Desktop\Finance Fraud"
 .\financevenv\Scripts\activate
-python start_advanced_api.py
+python start_api.py
 ```
 
 **Terminal 2 - Streamlit UI:**
 ```bash
 cd "D:\OneDrive\Desktop\Finance Fraud"
 .\financevenv\Scripts\activate
-python start_advanced_streamlit.py
+python start_ui.py
 ```
 
 ### Access Points
@@ -280,10 +280,10 @@ python index_amlsim_documents.py
 .\financevenv\Scripts\activate
 
 # Start API
-python start_advanced_api.py
+python start_api.py
 
 # Start UI (new terminal)
-python start_advanced_streamlit.py
+python start_ui.py
 
 # Build/rebuild knowledge graphs
 python build_sebi_knowledge_graph.py

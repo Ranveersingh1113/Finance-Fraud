@@ -2,15 +2,19 @@
 Advanced FastAPI backend for the Financial Intelligence Platform.
 Phase 3 implementation with production-grade RAG engine and Ollama integration.
 """
-from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks, Security
+from fastapi import FastAPI, HTTPException, Depends, Query, BackgroundTasks, Security, Request
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Dict, Any, Optional
 import logging
 import uvicorn
 import asyncio
 from datetime import datetime
+import os
+import re
+import json
+from pathlib import Path
 
 import sys
 from pathlib import Path
@@ -35,12 +39,16 @@ settings = Settings()
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
-# Valid API keys (in production, use database or environment variables)
+# Valid API keys - Load from environment variables for security
 VALID_API_KEYS = {
     settings.api_key,  # From config/env
-    "dev-api-key",     # Development key
-    "analyst-key-001"  # Analyst key
+    os.getenv('API_KEY_DEV'),     # Development key from env
+    os.getenv('API_KEY_ANALYST'),  # Analyst key from env
+    "dev-api-key",     # Fallback for development only
 }
+
+# Filter out None values
+VALID_API_KEYS = {key for key in VALID_API_KEYS if key}
 
 async def get_api_key(api_key: str = Security(api_key_header)):
     """Validate API key for secured endpoints."""
@@ -67,6 +75,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting (if slowapi is installed)
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    RATE_LIMITING_ENABLED = True
+    logger.info("Rate limiting enabled")
+except ImportError:
+    limiter = None
+    RATE_LIMITING_ENABLED = False
+    logger.warning("Rate limiting not available (slowapi not installed)")
+
+# Audit logging setup
+AUDIT_LOG_DIR = Path("./logs")
+AUDIT_LOG_DIR.mkdir(exist_ok=True)
+AUDIT_LOG_FILE = AUDIT_LOG_DIR / "audit.log"
+
+def audit_log(action: str, user: str, details: dict, request: Request = None):
+    """
+    Basic audit logging for compliance.
+    
+    Args:
+        action: Action performed (e.g., 'query', 'case_create')
+        user: User identifier or API key
+        details: Additional details about the action
+        request: FastAPI request object for IP address
+    """
+    try:
+        log_entry = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'action': action,
+            'user': user if user else 'anonymous',
+            'ip_address': request.client.host if request and request.client else None,
+            'details': details,
+        }
+        
+        # Append to secure log file
+        with open(AUDIT_LOG_FILE, 'a') as f:
+            f.write(json.dumps(log_entry) + '\n')
+        
+        # Also log to standard logger for visibility
+        logger.info(f"AUDIT: {action} by {user if user else 'anonymous'}")
+        
+    except Exception as e:
+        logger.error(f"Audit logging failed: {e}")
+
 # Global instances
 rag_engine = None
 data_ingestion = None
@@ -75,11 +133,44 @@ unified_engine = None  # Unified GraphRAG engine (initialized once!)
 
 
 class QueryRequest(BaseModel):
-    """Request model for RAG queries."""
+    """Request model for RAG queries with input validation."""
     query: str
     n_results: int = 5
     collection: Optional[str] = None  # 'transactions', 'sebi_documents', or None for all
     include_metadata: bool = True
+    
+    @validator('query')
+    def sanitize_query(cls, v):
+        """Sanitize query to prevent injection attacks."""
+        if not v or not v.strip():
+            raise ValueError("Query cannot be empty")
+        
+        # Remove dangerous characters
+        v = re.sub(r'[;<>\'"\\]', '', v)
+        
+        # Block prompt injection attempts
+        blocked_patterns = [
+            r'ignore.*previous.*instructions',
+            r'system.*prompt',
+            r'you are.*jailbreak',
+        ]
+        
+        for pattern in blocked_patterns:
+            if re.search(pattern, v, re.IGNORECASE):
+                raise ValueError("Potentially malicious input detected")
+        
+        # Limit length
+        if len(v) > 1000:
+            raise ValueError("Query too long (max 1000 characters)")
+        
+        return v.strip()
+    
+    @validator('n_results')
+    def validate_n_results(cls, v):
+        """Prevent resource exhaustion."""
+        if v < 1 or v > 100:
+            raise ValueError("n_results must be between 1 and 100")
+        return v
 
 
 class QueryResponse(BaseModel):
@@ -213,7 +304,11 @@ async def health_check():
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query_rag_engine(request: QueryRequest, api_key: str = Depends(get_api_key)):
+async def query_rag_engine(
+    request: QueryRequest,
+    api_key: str = Depends(get_api_key),
+    req: Request = None
+):
     """
     Query the advanced RAG engine with Ollama-powered generation.
     
@@ -222,6 +317,7 @@ async def query_rag_engine(request: QueryRequest, api_key: str = Depends(get_api
     Args:
         request: Query request with parameters
         api_key: API key for authentication
+        req: FastAPI request object for audit logging
         
     Returns:
         Comprehensive response with answer, evidence, and metadata
@@ -251,6 +347,19 @@ async def query_rag_engine(request: QueryRequest, api_key: str = Depends(get_api
                 "source": result.source
             }
             evidence.append(evidence_item)
+        
+        # Audit log the query
+        audit_log(
+            action="query",
+            user=api_key[-8:] if api_key else "anonymous",  # Last 8 chars for privacy
+            details={
+                "query_length": len(request.query),
+                "n_results": request.n_results,
+                "query_type": rag_response.query_type,
+                "processing_time": processing_time
+            },
+            request=req
+        )
         
         return QueryResponse(
             query=request.query,

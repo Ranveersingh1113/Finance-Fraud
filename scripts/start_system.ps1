@@ -80,7 +80,7 @@ if (-not $FrontendOnly) {
     $apiJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        python start_advanced_api.py
+        python start_api.py
     } -ArgumentList $ProjectRoot
     
     Write-Host "✓ API Server started (Job ID: $($apiJob.Id))" -ForegroundColor Green
@@ -97,7 +97,7 @@ if (-not $ApiOnly) {
     $frontendJob = Start-Job -ScriptBlock {
         param($root)
         Set-Location $root
-        python start_advanced_streamlit.py
+        python start_ui.py
     } -ArgumentList $ProjectRoot
     
     Write-Host "✓ Frontend started (Job ID: $($frontendJob.Id))" -ForegroundColor Green

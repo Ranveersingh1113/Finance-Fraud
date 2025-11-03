@@ -77,12 +77,12 @@ python test_advanced_rag.py
 
 ### Start API Server
 ```bash
-python start_advanced_api.py
+python start_api.py
 ```
 
 ### Start Web Interface
 ```bash
-python start_advanced_streamlit.py
+python start_ui.py
 ```
 
 ## Development

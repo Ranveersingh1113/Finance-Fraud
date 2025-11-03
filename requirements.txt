@@ -31,6 +31,7 @@ pydantic>=2.5.0
 httpx>=0.25.2
 python-multipart>=0.0.6
 tenacity>=8.2.3  # Retry logic with exponential backoff
+slowapi>=0.1.9  # Rate limiting for FastAPI
 
 # Development
 pytest>=7.4.3
