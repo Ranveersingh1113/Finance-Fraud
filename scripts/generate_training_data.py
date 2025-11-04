@@ -37,7 +37,69 @@ class TrainingDataGenerator:
         self.collections = {}
         for col in self.chroma_client.list_collections():
             self.collections[col.name] = col
-            print(f"✓ Loaded collection: {col.name} ({col.count()} documents)")
+            print(f"[OK] Loaded collection: {col.name} ({col.count()} documents)")
+    
+    def _get_hard_negatives(self, query: str, positive_idx: int, data: Dict, 
+                           num_docs: int, k: int = 5) -> List[Dict]:
+        """
+        Get hard negative examples (similar to query but not the positive doc).
+        Uses keyword overlap to find near-misses instead of random sampling.
+        """
+        query_terms = set(query.lower().split())
+        candidates = []
+        
+        for j in range(num_docs):
+            if j == positive_idx:
+                continue  # Skip positive document
+            
+            doc_text = data['documents'][j][:500].lower()
+            doc_terms = set(doc_text.split())
+            
+            # Calculate overlap score
+            overlap = len(query_terms & doc_terms) / max(len(query_terms), 1)
+            
+            candidates.append({
+                'idx': j,
+                'overlap': overlap,
+                'doc': {
+                    'id': data['ids'][j],
+                    'text': data['documents'][j][:1000],
+                    'metadata': data['metadatas'][j]
+                }
+            })
+        
+        # Sort by overlap (descending) and take top k
+        # These are "hard negatives" - similar but not relevant
+        candidates.sort(key=lambda x: x['overlap'], reverse=True)
+        
+        # Take some high-overlap (hard) and some random (easy) negatives
+        hard_negs = [c['doc'] for c in candidates[:3]]  # Top 3 similar
+        easy_negs = [c['doc'] for c in random.sample(candidates[10:], min(2, len(candidates)-10))]  # Random
+        
+        return hard_negs + easy_negs
+    
+    def _validate_training_pair(self, query: str, positive_doc: Dict) -> bool:
+        """
+        Validate that query is answerable by the positive document.
+        Filters out low-quality synthetic queries.
+        """
+        # Filter too short queries
+        if len(query) < 15:
+            return False
+        
+        # Filter generic queries
+        generic_patterns = ['what is', 'explain', 'show me', 'tell me about']
+        if any(pattern in query.lower() for pattern in generic_patterns):
+            # Allow if query has specific terms
+            if len(query.split()) < 5:
+                return False
+        
+        # Check term overlap
+        query_terms = set(query.lower().split())
+        doc_terms = set(positive_doc['text'][:500].lower().split())
+        overlap = len(query_terms & doc_terms) / max(len(query_terms), 1)
+        
+        return overlap > 0.25  # At least 25% term overlap
     
     def generate_query_from_metadata(self, metadata: Dict, document_text: str) -> List[str]:
         """
@@ -141,24 +203,22 @@ class TrainingDataGenerator:
                     'metadata': metadata
                 }
                 
-                # Sample NEGATIVE examples from same collection
-                # (documents that are NOT this one)
-                negative_indices = [j for j in range(num_docs) if j != i]
-                negative_samples = random.sample(
-                    negative_indices, 
-                    min(5, len(negative_indices))
+                # Sample HARD NEGATIVE examples (similar but not relevant)
+                # Use keyword overlap to find documents that look similar but aren't positive
+                negative_docs = self._get_hard_negatives(
+                    queries[0] if queries else doc_text[:200],  # Use first query or doc preview
+                    i,
+                    data,
+                    num_docs,
+                    k=5
                 )
                 
-                negative_docs = []
-                for neg_idx in negative_samples:
-                    negative_docs.append({
-                        'id': data['ids'][neg_idx],
-                        'text': data['documents'][neg_idx][:1000],
-                        'metadata': data['metadatas'][neg_idx]
-                    })
-                
-                # Create training pair for each query
+                # Create training pair for each query (with validation)
                 for query in queries:
+                    # Validate pair quality
+                    if not self._validate_training_pair(query, positive_doc):
+                        continue  # Skip low-quality pairs
+                    
                     all_training_pairs.append({
                         'query': query,
                         'positive': positive_doc,
@@ -171,7 +231,7 @@ class TrainingDataGenerator:
                 if (i + 1) % 10 == 0:
                     print(f"  • Processed {i+1}/{num_docs} documents...")
             
-            print(f"  ✓ Generated {len([p for p in all_training_pairs if p['source_collection'] == collection_name])} pairs from {collection_name}")
+            print(f"  [OK] Generated {len([p for p in all_training_pairs if p['source_collection'] == collection_name])} pairs from {collection_name}")
         
         return all_training_pairs
     
@@ -233,12 +293,12 @@ class TrainingDataGenerator:
         # Step 1: Generate from existing documents
         print("[1/3] Generating pairs from ChromaDB documents...")
         document_pairs = self.create_training_pairs()
-        print(f"✓ Generated {len(document_pairs)} document-based pairs")
+        print(f"[OK] Generated {len(document_pairs)} document-based pairs")
         
         # Step 2: Add expert queries
         print("\n[2/3] Adding expert-crafted queries...")
         expert_queries = self.add_expert_queries()
-        print(f"✓ Added {len(expert_queries)} expert queries")
+        print(f"[OK] Added {len(expert_queries)} expert queries")
         
         # For expert queries, retrieve top documents as positives
         expert_pairs = []
@@ -281,7 +341,7 @@ class TrainingDataGenerator:
                 except Exception as e:
                     continue
         
-        print(f"✓ Created {len(expert_pairs)} expert query pairs")
+        print(f"[OK] Created {len(expert_pairs)} expert query pairs")
         
         # Step 3: Combine and shuffle
         print("\n[3/3] Combining and shuffling dataset...")
@@ -291,7 +351,7 @@ class TrainingDataGenerator:
         # Limit to target if we have too many
         if len(all_pairs) > self.target_pairs:
             all_pairs = all_pairs[:self.target_pairs]
-            print(f"✓ Trimmed to {self.target_pairs} pairs")
+            print(f"[OK] Trimmed to {self.target_pairs} pairs")
         
         # Create dataset structure
         dataset = {

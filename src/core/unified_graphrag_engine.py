@@ -15,8 +15,10 @@ import logging
 from pathlib import Path
 import asyncio
 import time
+import re
 from concurrent.futures import ThreadPoolExecutor
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from src.utils import SEBIDocumentClassifier, DocumentTitleExtractor, AccountIDValidator
 
 from .sebi_graph_manager import SEBIGraphManager
 from .amlsim_graph_manager import AMLSimGraphManager
@@ -47,7 +49,8 @@ class UnifiedGraphRAGEngine:
     def __init__(self, persist_directory: str = "./data/graphs",
                  chroma_directory: str = "./data/chroma_db",
                  anthropic_api_key: Optional[str] = None,
-                 ollama_model: str = "llama3.1:8b"):
+                 ollama_model: str = "llama3.1:8b",
+                 ollama_host: str = "http://localhost:11434"):
         """
         Initialize unified GraphRAG engine.
         
@@ -56,6 +59,7 @@ class UnifiedGraphRAGEngine:
             chroma_directory: ChromaDB directory
             anthropic_api_key: Optional Anthropic API key
             ollama_model: Ollama model name
+            ollama_host: Ollama host URL
         """
         self.persist_directory = Path(persist_directory)
         
@@ -75,7 +79,8 @@ class UnifiedGraphRAGEngine:
         self.rag_engine = AdvancedRAGEngine(
             persist_directory=chroma_directory,
             anthropic_api_key=anthropic_api_key,
-            ollama_model=ollama_model
+            ollama_model=ollama_model,
+            ollama_host=ollama_host
         )
         
         # Get AMLSim collection
@@ -131,6 +136,11 @@ class UnifiedGraphRAGEngine:
         }
         self._pattern_cache_initialized = False
         self._cache_refresh_task = None
+        
+        # Initialize utility classes for document processing
+        self.doc_classifier = SEBIDocumentClassifier()
+        self.title_extractor = DocumentTitleExtractor()
+        logger.info("Document processing utilities initialized")
         
         # Start async pattern cache initialization
         asyncio.create_task(self._initialize_pattern_cache_async())
@@ -349,6 +359,11 @@ class UnifiedGraphRAGEngine:
         query_type = validated_query['query_type']
         account_id = validated_query['account_id']
         
+        # Detect if query is asking about regulations (even if it mentions an account)
+        is_regulatory_query = any(keyword in query.lower() for keyword in 
+                                 ['sebi', 'regulation', 'regulatory', 'compliance', 'violation', 
+                                  'penalty', 'precedent', 'enforcement', 'rule', 'law', 'legal'])
+        
         return {
             'query': query,
             'query_type': query_type,
@@ -356,7 +371,8 @@ class UnifiedGraphRAGEngine:
             'n_results': n_results,
             'check_cache': query_type in ['regulatory', 'general'] and account_id is None,
             'is_account_trace': account_id is not None,
-            'account_id': account_id
+            'account_id': account_id,
+            'is_regulatory_query': is_regulatory_query
         }
     
     async def _execute_query_plan(self, plan: Dict) -> Dict[str, Any]:
@@ -379,7 +395,9 @@ class UnifiedGraphRAGEngine:
         # Handle account trace queries
         if plan['is_account_trace']:
             return await self.trace_transaction_with_regulatory_context(
-                str(plan['account_id'])
+                str(plan['account_id']),
+                original_query=plan.get('query', ''),
+                is_regulatory_query=plan.get('is_regulatory_query', False)
             )
         
         # Gather contexts in parallel
@@ -447,11 +465,32 @@ class UnifiedGraphRAGEngine:
         
         rag_results = results.get('rag_results', {})
         
+        # Determine if graph context was actually used
+        # Check if graph_context contains meaningful data (not just empty dict)
+        graph_context_used = False
+        if plan.get('use_graphs', False):
+            # Check if we have meaningful graph context
+            has_sebi_context = (
+                'sebi_context' in graph_context and 
+                graph_context.get('sebi_context', {}) and
+                (sebi_entities or 
+                 graph_context.get('sebi_context', {}).get('total_entities', 0) > 0)
+            )
+            has_amlsim_context = (
+                'amlsim_context' in graph_context and 
+                graph_context.get('amlsim_context', {}) and
+                (amlsim_patterns or 
+                 len(graph_context.get('amlsim_context', {})) > 0)
+            )
+            # Graph is used if we have either SEBI or AMLSim context
+            graph_context_used = has_sebi_context or has_amlsim_context or bool(results.get('patterns', []))
+        
         # Prepare response
         response = {
-            'query': results['query'],
-            'query_type': results['query_type'],
-            'answer': results['answer'],
+            'query': results.get('query', plan.get('query', '')),
+            'query_type': results.get('query_type', plan.get('query_type', 'general')),
+            'answer': results.get('answer', ''),
+            'graph_context_used': graph_context_used,
             'graph_context': {
                 'sebi_entities': sebi_entities,
                 'amlsim_patterns': amlsim_patterns,
@@ -1336,22 +1375,340 @@ Provide a clear, factual answer based on the evidence:
         """
         return name.lower().strip().replace(" ", "_").replace("-", "_")
     
-    async def trace_transaction_with_regulatory_context(self, account_id: str) -> Dict[str, Any]:
+    def _is_valid_case_name(self, name: str) -> bool:
+        """
+        Check if a case name is valid (not a sentence fragment).
+        
+        Args:
+            name: Entity/case name to validate
+            
+        Returns:
+            True if name appears valid, False if it's likely a sentence fragment
+        """
+        if not name or len(name) < 5:
+            return False
+        
+        # Filter out obvious sentence fragments
+        invalid_starts = [
+            'the ', 'and ', 'as ', 'that ', 'which ', 'who ', 'where ', 'when ',
+            'has ', 'have ', 'had ', 'is ', 'was ', 'were ', 'are ', 'been ',
+            'for ', 'with ', 'from ', 'by ', 'at ', 'of ', 'to ', 'in ', 'on ',
+            'a ', 'an ', 'this ', 'these ', 'those ', 'there ',
+        ]
+        
+        name_lower = name.lower()
+        if any(name_lower.startswith(start) for start in invalid_starts):
+            return False
+        
+        # Filter out names that are too long (likely paragraphs)
+        if len(name) > 100 or name.count(' ') > 10:
+            return False
+        
+        # Filter out names that look like generic labels
+        if name.startswith('SEBI Case #'):
+            return False
+        
+        # Filter out names with lowercase first letter (likely mid-sentence)
+        if name[0].islower():
+            return False
+        
+        return True
+    
+    def _enrich_case_with_penalties(self, case: Dict) -> Dict:
+        """
+        Extract penalty amounts, outcomes, and proper entity names from SEBI case documents.
+        
+        Args:
+            case: Case dict with 'entity', 'violation', 'documents'
+            
+        Returns:
+            Enriched case with 'penalty_amount', 'outcome', 'name'
+        """
+        enriched = {
+            'name': case.get('entity', 'Unknown Entity'),
+            'violation_type': case.get('violation', 'Unknown'),
+            'penalty_amount': None,
+            'outcome': 'Under investigation',
+            'citation_count': case.get('citation_count', 0)
+        }
+        
+        # Parse documents to extract penalty and outcome
+        documents = case.get('documents', [])
+        if not documents:
+            return enriched
+        
+        # Combine document text for parsing
+        doc_text = ' '.join(documents[:3])  # Use first 3 docs
+        doc_lower = doc_text.lower()
+        
+        # Extract proper entity name from adjudication order
+        # Pattern: "IN THE MATTER OF <Entity Name>" or "MATTER OF <Entity Name>"
+        entity_patterns = [
+            r'IN\s+THE\s+MATTER\s+OF\s+([A-Z][A-Za-z\s&\.,\(\)]+?)(?:\s+(?:AND|PAN|Scrip|SEBI|Reg\.|Limited|Ltd|Private|Pvt))',
+            r'MATTER\s+OF\s+([A-Z][A-Za-z\s&\.,\(\)]+?)(?:\s+(?:AND|PAN|Scrip|SEBI|Reg\.|Limited|Ltd|Private|Pvt))',
+            r'(?:Noticee|Entity|Company):\s*([A-Z][A-Za-z\s&\.,\(\)]+?)(?:\s+(?:PAN|Scrip|SEBI|Reg\.|Limited|Ltd|Private|Pvt))',
+        ]
+        
+        for pattern in entity_patterns:
+            match = re.search(pattern, doc_text[:2000])  # Search first 2000 chars
+            if match:
+                entity_name = match.group(1).strip()
+                # Clean up common noise
+                entity_name = re.sub(r'\s+', ' ', entity_name)
+                # Only use if it's a reasonable name (not a sentence fragment)
+                if len(entity_name) > 5 and len(entity_name) < 100 and not entity_name.lower().startswith(('the ', 'and ', 'as ')):
+                    enriched['name'] = entity_name
+                    break
+        
+        # If still no good name, try to extract from "Noticee" context
+        if enriched['name'] == case.get('entity') and 'noticee' in doc_lower:
+            noticee_pattern = r'Noticee[,\s]+(?:M/s\.?|Mr\.?|Mrs\.?|Ms\.?)?\s*([A-Z][A-Za-z\s&\.,\(\)]+?)(?:\s+(?:has|have|is|was|were|through|PAN|Reg))'
+            match = re.search(noticee_pattern, doc_text[:2000])
+            if match:
+                entity_name = match.group(1).strip()
+                entity_name = re.sub(r'\s+', ' ', entity_name)
+                if len(entity_name) > 5 and len(entity_name) < 100:
+                    enriched['name'] = entity_name
+        
+        # Last resort: if name is still bad (sentence fragment), use generic label
+        if len(enriched['name']) > 80 or enriched['name'].count(' ') > 8:
+            enriched['name'] = f"SEBI Case #{case.get('citation_count', 0)}"
+        
+        # Extract penalty amount (look for currency patterns)
+        penalty_patterns = [
+            r'penalty[^₹]*₹\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:lakh|crore)?',
+            r'fine[^₹]*₹\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:lakh|crore)?',
+            r'rs\.?\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:lakh|crore)',
+            r'rupees\s+([0-9,]+(?:\.[0-9]+)?)\s*(?:lakh|crore)?',
+        ]
+        
+        for pattern in penalty_patterns:
+            match = re.search(pattern, doc_lower)
+            if match:
+                amount_str = match.group(1).replace(',', '')
+                try:
+                    amount = float(amount_str)
+                    # Check if lakh or crore mentioned
+                    context = doc_text[max(0, match.start()-50):match.end()+50].lower()
+                    if 'crore' in context:
+                        amount = amount * 10000000
+                    elif 'lakh' in context:
+                        amount = amount * 100000
+                    enriched['penalty_amount'] = int(amount)
+                    break
+                except ValueError:
+                    pass
+        
+        # Extract outcome (look for common enforcement outcomes)
+        outcome_patterns = {
+            'Debarred': r'debar(?:red|ment)',
+            'Suspended': r'suspend(?:ed|sion)',
+            'Warning Issued': r'warning(?:\s+issued)?',
+            'License Revoked': r'(?:license|registration)\s+(?:revoked|cancelled)',
+            'Consent Order': r'consent\s+order',
+            'Disgorgement': r'disgorge(?:ment)?',
+            'Prohibited': r'prohibit(?:ed|ion)',
+        }
+        
+        for outcome_label, pattern in outcome_patterns.items():
+            if re.search(pattern, doc_lower):
+                enriched['outcome'] = outcome_label
+                break
+        
+        # If no specific outcome found but penalty exists, default to "Penalty Imposed"
+        if enriched['penalty_amount'] and enriched['outcome'] == 'Under investigation':
+            enriched['outcome'] = 'Penalty Imposed'
+        
+        return enriched
+    
+    def _classify_fraud_typology(self, pattern_type: str, money_flow: Dict, account_data: Dict) -> Dict[str, Any]:
+        """
+        Classify transaction pattern into specific fraud typology with actionable intelligence.
+        
+        Args:
+            pattern_type: Detected pattern type (fan_out, fan_in, layering_hub, etc.)
+            money_flow: Money flow analysis results
+            account_data: Account details
+            
+        Returns:
+            Dictionary containing fraud typology, money laundering phase, indicators, and actions
+        """
+        typology = {
+            'primary_type': 'Unknown',
+            'ml_phase': None,  # Money laundering phase
+            'indicators': [],
+            'regulatory_violations': [],
+            'action_items': [],
+            'compliance_requirements': [],
+            'investigation_priority': 'MEDIUM'
+        }
+        
+        outgoing_count = money_flow.get('outgoing_count', 0)
+        incoming_count = money_flow.get('incoming_count', 0)
+        total_sent = money_flow.get('total_sent', 0)
+        total_received = money_flow.get('total_received', 0)
+        
+        # FAN-OUT Pattern: Smurfing/Structuring (Placement Phase)
+        if pattern_type == 'fan_out':
+            typology['primary_type'] = 'Smurfing/Structuring'
+            typology['ml_phase'] = 'Placement Phase'
+            typology['indicators'] = [
+                f"{outgoing_count} rapid outgoing transactions to {money_flow.get('accounts_reached', 0)} different accounts",
+                f"Total disbursement: ${total_sent:,.2f}",
+                "Pattern consistent with breaking large sums into smaller transactions"
+            ]
+            typology['regulatory_violations'] = [
+                "PMLA 2002 Section 12: Suspicious transaction reporting required",
+                "SEBI AML Guidelines: Structuring to avoid reporting thresholds",
+                "PML Rules 2005: Client due diligence requirements"
+            ]
+            typology['action_items'] = [
+                {"action": "File Suspicious Transaction Report (STR)", "deadline": "7 days", "priority": "CRITICAL"},
+                {"action": "Review KYC documentation for all destination accounts", "deadline": "48 hours", "priority": "HIGH"},
+                {"action": "Verify source of funds", "deadline": "72 hours", "priority": "HIGH"},
+                {"action": "Check for beneficial ownership connections", "deadline": "5 days", "priority": "MEDIUM"}
+            ]
+            typology['compliance_requirements'] = [
+                "Enhanced Due Diligence (EDD) required per SEBI AML Guidelines Section 3.1",
+                "Transaction monitoring for 90 days post-investigation",
+                "Documentation of all transactions >₹10 lakh required",
+                "Customer interview and source of wealth verification"
+            ]
+            typology['investigation_priority'] = 'CRITICAL' if outgoing_count > 30 else 'HIGH'
+        
+        # FAN-IN Pattern: Integration/Collection
+        elif pattern_type == 'fan_in':
+            typology['primary_type'] = 'Integration/Collection'
+            typology['ml_phase'] = 'Integration Phase'
+            typology['indicators'] = [
+                f"{incoming_count} incoming transactions from {money_flow.get('accounts_reached', 0)} different sources",
+                f"Total collection: ${total_received:,.2f}",
+                "Pattern consistent with consolidating funds from multiple sources"
+            ]
+            typology['regulatory_violations'] = [
+                "PMLA 2002: Potential proceeds of crime integration",
+                "SEBI (Prohibition of Fraudulent Practices): Possible layering scheme",
+                "PML Rules: Enhanced monitoring requirements"
+            ]
+            typology['action_items'] = [
+                {"action": "File STR with detailed transaction mapping", "deadline": "7 days", "priority": "CRITICAL"},
+                {"action": "Trace source accounts for fraud indicators", "deadline": "48 hours", "priority": "HIGH"},
+                {"action": "Freeze account pending investigation", "deadline": "24 hours", "priority": "CRITICAL"},
+                {"action": "Coordinate with Financial Intelligence Unit (FIU)", "deadline": "72 hours", "priority": "HIGH"}
+            ]
+            typology['compliance_requirements'] = [
+                "Immediate Enhanced Due Diligence (EDD)",
+                "Source of funds verification for all incoming transactions",
+                "Beneficial ownership identification for source accounts",
+                "Potential account freeze per PMLA Section 17"
+            ]
+            typology['investigation_priority'] = 'CRITICAL'
+        
+        # LAYERING HUB: Pass-through/Transit Account
+        elif pattern_type == 'layering_hub':
+            typology['primary_type'] = 'Layering/Transit Account'
+            typology['ml_phase'] = 'Layering Phase'
+            typology['indicators'] = [
+                f"Bi-directional flow: {outgoing_count} outgoing, {incoming_count} incoming",
+                f"Net flow: ${money_flow.get('net_flow', 0):,.2f}",
+                "Rapid in-and-out pattern typical of layering schemes",
+                "Account acting as intermediary/conduit"
+            ]
+            typology['regulatory_violations'] = [
+                "PMLA 2002: Classic layering pattern",
+                "SEBI AML: Shell/conduit account indicators",
+                "PML Rules: Enhanced monitoring trigger"
+            ]
+            typology['action_items'] = [
+                {"action": "File STR - Layering scheme identified", "deadline": "7 days", "priority": "CRITICAL"},
+                {"action": "Map complete transaction chain (upstream and downstream)", "deadline": "5 days", "priority": "HIGH"},
+                {"action": "Identify ultimate beneficiary", "deadline": "7 days", "priority": "HIGH"},
+                {"action": "Check for international connections", "deadline": "10 days", "priority": "MEDIUM"}
+            ]
+            typology['compliance_requirements'] = [
+                "Enhanced Transaction Monitoring (ETM) for 6 months",
+                "Complete audit trail documentation",
+                "Beneficial ownership verification - entire chain",
+                "Cross-border transaction reporting if applicable"
+            ]
+            typology['investigation_priority'] = 'HIGH'
+        
+        # HIGH-VALUE: Large transaction monitoring
+        elif pattern_type == 'high_value':
+            typology['primary_type'] = 'High-Value Transaction Monitoring'
+            typology['ml_phase'] = 'Multiple phases possible'
+            typology['indicators'] = [
+                f"Large value transactions detected: ${max(total_sent, total_received):,.2f}",
+                "Exceeds reporting threshold",
+                "Enhanced scrutiny required"
+            ]
+            typology['regulatory_violations'] = [
+                "Cash Transaction Report (CTR) required if applicable",
+                "SEBI AML: High-value monitoring requirements"
+            ]
+            typology['action_items'] = [
+                {"action": "File Cash Transaction Report if >₹10 lakh", "deadline": "15 days", "priority": "HIGH"},
+                {"action": "Verify transaction legitimacy", "deadline": "7 days", "priority": "MEDIUM"},
+                {"action": "Enhanced monitoring for 30 days", "deadline": "Ongoing", "priority": "MEDIUM"}
+            ]
+            typology['compliance_requirements'] = [
+                "Transaction documentation per PML Rules",
+                "Purpose and nature of transaction verification",
+                "Ongoing monitoring for related accounts"
+            ]
+            typology['investigation_priority'] = 'MEDIUM'
+        
+        # Add account flags to typology
+        if account_data.get('is_fraud'):
+            typology['indicators'].append("⚠️ ACCOUNT FLAGGED AS FRAUDULENT IN SYSTEM")
+            typology['investigation_priority'] = 'CRITICAL'
+            typology['action_items'].insert(0, {
+                "action": "IMMEDIATE ACCOUNT FREEZE - Fraud flag active",
+                "deadline": "Immediate",
+                "priority": "CRITICAL"
+            })
+        elif account_data.get('is_suspicious'):
+            typology['indicators'].append("⚠️ Account flagged as suspicious")
+            if typology['investigation_priority'] == 'MEDIUM':
+                typology['investigation_priority'] = 'HIGH'
+        
+        return typology
+    
+    async def trace_transaction_with_regulatory_context(self, account_id: str, 
+                                                       original_query: str = '',
+                                                       is_regulatory_query: bool = False) -> Dict[str, Any]:
         """
         Trace transaction flow and match with SEBI regulatory cases.
         Generates formatted response for API/UI consumption.
         
         Args:
-            account_id: Account to analyze (numeric ID)
+            account_id: Account to analyze (numeric ID or string)
+            original_query: Original user query (for regulatory searches)
+            is_regulatory_query: Whether the query is asking about regulations
             
         Returns:
             Formatted response with money flow trace and regulatory context
         """
         try:
-            logger.info(f"Tracing money flow for account {account_id}")
+            # Validate and sanitize account ID
+            try:
+                validated_account_id = AccountIDValidator.validate(account_id)
+                account_node_id = f"account_{validated_account_id}"
+                logger.info(f"Tracing money flow for account {validated_account_id}")
+            except ValueError as e:
+                logger.error(f"Invalid account ID: {e}")
+                return {
+                    'query': original_query if original_query else f"Trace account {account_id}",
+                    'query_type': 'error',
+                    'answer': f"## INVALID ACCOUNT ID\n\n**Error:** {str(e)}\n\n**Please provide a valid numeric account ID.**",
+                    'confidence': 0.0,
+                    'graph_context_used': False,
+                    'sebi_results': [],
+                    'amlsim_results': [],
+                    'cross_domain_patterns': 0
+                }
             
-            # Trace money flow in AMLSim graph
-            account_node_id = f"account_{account_id}"
+            # Trace money flow in AMLSim graph (account_node_id already set above)
             money_flow = self.amlsim_graph.trace_money_flow(
                 account_node_id,
                 max_hops=RAGConfig.TRACE_MAX_HOPS
@@ -1362,11 +1719,13 @@ Provide a clear, factual answer based on the evidence:
             
             # Check if account exists
             if account_data is None:
-                logger.warning(f"Account {account_id} not found in AMLSim graph")
+                logger.warning(f"Account {validated_account_id} not found in AMLSim graph")
                 return {
+                    'query': original_query if original_query else f"Trace account {account_id}",
                     'query_type': 'transactional_trace',
-                    'answer': f"## ACCOUNT NOT FOUND\n\n**Account ID:** {account_id}\n\n**Status:** Account not found in the transaction database.\n\n**Possible reasons:**\n- Account ID may be incorrect\n- Account may not exist in the current dataset\n- Account may have been removed or deactivated\n\n**Recommendation:** Please verify the account ID and try again.",
+                    'answer': f"## ACCOUNT NOT FOUND\n\n**Account ID:** {validated_account_id}\n\n**Status:** Account not found in the transaction database.\n\n**Possible reasons:**\n- Account ID may be incorrect\n- Account may not exist in the current dataset\n- Account may have been removed or deactivated\n\n**Recommendation:** Please verify the account ID and try again.",
                     'confidence': 0.0,
+                    'graph_context_used': False,
                     'sebi_results': [],
                     'amlsim_results': [],
                     'cross_domain_patterns': 0
@@ -1391,23 +1750,164 @@ Provide a clear, factual answer based on the evidence:
             else:
                 pattern_type = "normal"
                 pattern_description = f"Normal activity: {outgoing_count} outgoing, {incoming_count} incoming transactions"
-        
-            # Find similar SEBI cases
-            sebi_cases = []
-            for violation in ['money_laundering', 'fraud', 'market_manipulation']:
-                cases = self.sebi_graph.find_similar_cases(violation, limit=3)
-                if cases:
-                    sebi_cases.extend(cases[:2])
             
-            # Get related documents from ChromaDB
+            # Classify fraud typology and get actionable intelligence
+            fraud_typology = self._classify_fraud_typology(pattern_type, money_flow, account_data)
+            logger.info(f"Fraud typology classified: {fraud_typology['primary_type']} - Priority: {fraud_typology['investigation_priority']}")
+        
+            # DISABLED: SEBI case precedents due to data quality issues
+            # The SEBI graph's entity names are sentence fragments, not proper company names
+            # This would require rebuilding the graph with better entity extraction
+            # For now, we hide this section rather than showing low-quality data
+            sebi_cases = []
+            logger.info("SEBI case precedents disabled due to entity name quality issues in graph data")
+            
+            # Get related documents from ChromaDB - search both transaction and SEBI documents
             rag_results = await self._dual_rag_retrieval_parallel(
                 f"account {account_id} {pattern_type} transactions money flow",
                 n_results=5
             )
+            
+            # Also search SEBI documents specifically for regulatory queries
+            # This ensures we get SEBI regulation content even for account traces
+            sebi_query_results = []
+            if is_regulatory_query and original_query:
+                # Enhance query to focus on AML/money laundering/fraud regulations for account queries
+                # Extract account number and pattern info for better search
+                enhanced_query = f"{original_query} money laundering fraud anti-money laundering AML suspicious transactions"
+                if pattern_type != 'normal':
+                    enhanced_query += f" {pattern_type} pattern layering structuring"
+                
+                logger.info(f"Searching SEBI documents with enhanced query: {enhanced_query}")
+                sebi_query_results = await self._query_sebi_collection(
+                    enhanced_query,
+                    n_results=10
+                )
+                logger.info(f"Found {len(sebi_query_results)} SEBI documents for regulatory query")
+                
+                # Filter and prioritize documents using intelligent classifier
+                # This replaces brittle keyword-based filtering with smart classification
+                query_type = 'regulatory_query' if is_regulatory_query else 'account_trace'
+                sebi_query_results = self.doc_classifier.filter_relevant_documents(
+                    sebi_query_results,
+                    query_type=query_type,
+                    document_key='document'
+                )
+                sebi_query_results = self.doc_classifier.prioritize_documents(
+                    sebi_query_results,
+                    query_type=query_type,
+                    document_key='document'
+                )
+                logger.info(f"After filtering: {len(sebi_query_results)} relevant documents")
+            else:
+                # Generic search based on pattern
+                sebi_search_query = f"regulations violations penalties {pattern_type} money laundering fraud"
+                sebi_query_results = await self._query_sebi_collection(
+                    sebi_search_query,
+                    n_results=10
+                )
+            
+            # Merge SEBI results into rag_results
+            if sebi_query_results:
+                if 'sebi_results' not in rag_results:
+                    rag_results['sebi_results'] = []
+                # Add new SEBI results, avoiding duplicates
+                existing_docs = {r.get('id', '') for r in rag_results.get('sebi_results', [])}
+                for result in sebi_query_results:
+                    if result.get('id', '') not in existing_docs:
+                        rag_results['sebi_results'].append(result)
         
-            # Generate comprehensive answer
+            # Generate comprehensive answer using LLM for regulatory queries
             answer_parts = []
-            answer_parts.append(f"## MONEY FLOW ANALYSIS: Account {account_id}\n")
+            
+            # For regulatory queries, use LLM to generate answer about regulations
+            if is_regulatory_query:
+                # Build context from SEBI documents and account pattern
+                sebi_context = ""
+                if sebi_query_results:
+                    for i, result in enumerate(sebi_query_results[:5], 1):
+                        doc_text = result.get('document', '')
+                        if doc_text:
+                            sebi_context += f"\n{i}. {doc_text[:500]}\n"
+                
+                # Generate LLM answer about regulations using SEBI evidence
+                total_sent = money_flow.get('total_sent', 0)
+                total_received = money_flow.get('total_received', 0)
+                regulation_prompt = f"""Based on the SEBI regulatory documents provided, answer this question: What specific SEBI regulations apply to account {validated_account_id} with {pattern_type} transaction pattern?
+
+Account Context:
+- Pattern: {fraud_typology['primary_type']} ({fraud_typology['ml_phase']})
+- Transaction volume: {outgoing_count} outgoing, {incoming_count} incoming
+- Total sent: ${total_sent:,.2f}, Total received: ${total_received:,.2f}
+- Priority: {fraud_typology['investigation_priority']}
+
+Provide a comprehensive answer that includes:
+1. Specific SEBI regulations violated or triggered by this pattern
+2. Exact sections and clauses that apply
+3. Compliance requirements and reporting deadlines
+4. Potential penalties for non-compliance
+5. Precedent cases with similar patterns and their outcomes
+
+Focus on actionable intelligence for fraud analysts."""
+                
+                try:
+                    # Convert SEBI results to QueryResult format for LLM
+                    from src.core.advanced_rag_engine import QueryResult
+                    sebi_evidence = []
+                    for result in sebi_query_results[:5]:
+                        sebi_evidence.append(QueryResult(
+                            document=result.get('document', ''),
+                            metadata=result.get('metadata', {}),
+                            similarity_score=result.get('score', 0),
+                            source='sebi_regulation'
+                        ))
+                    
+                    # Generate answer using LLM with SEBI evidence
+                    llm_answer = await self.rag_engine.generate_answer(regulation_prompt, sebi_evidence)
+                    answer_parts.append(f"## SEBI REGULATIONS APPLICABLE TO ACCOUNT {account_id}\n")
+                    answer_parts.append(llm_answer)
+                    answer_parts.append("\n")
+                except Exception as e:
+                    # Fallback if LLM fails
+                    logger.warning(f"LLM generation failed for regulatory query: {e}")
+                    answer_parts.append(f"## SEBI REGULATIONS APPLICABLE TO ACCOUNT {account_id}\n")
+                    if sebi_query_results:
+                        answer_parts.append("**SEBI Regulations Applicable:**\n")
+                        for i, result in enumerate(sebi_query_results[:5], 1):
+                            doc_text = result.get('document', '')
+                            score = result.get('score', 0)
+                            summary = doc_text[:400].strip() if doc_text else ''
+                            if summary:
+                                lines = doc_text.split('\n')
+                                title = lines[0] if lines else ''
+                                if title and len(title) < 100:
+                                    answer_parts.append(f"**{i}. {title}** (Relevance: {score:.2%})")
+                                else:
+                                    answer_parts.append(f"**{i}. Regulation Document** (Relevance: {score:.2%})")
+                                answer_parts.append(f"   {summary}")
+                                if len(doc_text) > 400:
+                                    answer_parts.append(f"   ...")
+                                answer_parts.append("")
+                    else:
+                        # No SEBI documents found, but provide general regulatory information
+                        answer_parts.append("**SEBI Regulations Applicable:**\n")
+                        answer_parts.append(f"Based on the transaction pattern ({pattern_type}) detected for account {account_id}, the following SEBI regulations and compliance requirements apply:\n")
+                        answer_parts.append("1. **Prevention of Money-Laundering Act (PMLA) 2002**")
+                        answer_parts.append("   - Applies to all suspicious transaction patterns")
+                        answer_parts.append("   - Requires reporting of suspicious transactions\n")
+                        answer_parts.append("2. **SEBI (Prohibition of Fraudulent and Unfair Trade Practices) Regulations**")
+                        answer_parts.append("   - Prohibits market manipulation and fraudulent schemes")
+                        answer_parts.append("   - Applies to layering and structuring patterns\n")
+                        answer_parts.append("3. **SEBI (Prohibition of Insider Trading) Regulations)**")
+                        answer_parts.append("   - Prevents insider trading activities")
+                        answer_parts.append("   - Requires disclosure of material information\n")
+                        answer_parts.append("4. **Anti-Money Laundering (AML) Guidelines for Intermediaries**")
+                        answer_parts.append("   - Requires KYC compliance")
+                        answer_parts.append("   - Mandates transaction monitoring and reporting\n")
+                        answer_parts.append("")
+                    answer_parts.append("\n**Account Context for Regulatory Analysis:**\n")
+            else:
+                answer_parts.append(f"## MONEY FLOW ANALYSIS: Account {account_id}\n")
         
             # Account profile
             answer_parts.append(f"**ACCOUNT PROFILE:**")
@@ -1447,8 +1947,133 @@ Provide a clear, factual answer based on the evidence:
                     answer_parts.append(f"{i}. Received ${amount:,.2f} ← {source}")
                 answer_parts.append("")
             
-            # Regulatory context
-            if sebi_cases:
+            # ===== FRAUD INTELLIGENCE SECTION =====
+            answer_parts.append(f"**🔍 FRAUD TYPOLOGY & INTELLIGENCE:**")
+            answer_parts.append(f"- **Fraud Type:** {fraud_typology['primary_type']}")
+            if fraud_typology['ml_phase']:
+                answer_parts.append(f"- **Money Laundering Phase:** {fraud_typology['ml_phase']}")
+            answer_parts.append(f"- **Investigation Priority:** **{fraud_typology['investigation_priority']}**\n")
+            
+            # Fraud indicators
+            if fraud_typology['indicators']:
+                answer_parts.append("**Key Fraud Indicators:**")
+                for indicator in fraud_typology['indicators']:
+                    answer_parts.append(f"  • {indicator}")
+                answer_parts.append("")
+            
+            # Regulatory violations detected
+            if fraud_typology['regulatory_violations']:
+                answer_parts.append("**⚖️ Regulatory Violations Identified:**")
+                for violation in fraud_typology['regulatory_violations']:
+                    answer_parts.append(f"  • {violation}")
+                answer_parts.append("")
+            
+            # Action items with deadlines
+            if fraud_typology['action_items']:
+                answer_parts.append("**📋 REQUIRED ACTIONS (with Deadlines):**")
+                for action_item in fraud_typology['action_items']:
+                    priority_emoji = "🔴" if action_item['priority'] == "CRITICAL" else "🟠" if action_item['priority'] == "HIGH" else "🟡"
+                    answer_parts.append(f"  {priority_emoji} **{action_item['action']}**")
+                    answer_parts.append(f"     Deadline: {action_item['deadline']} | Priority: {action_item['priority']}")
+                answer_parts.append("")
+            
+            # Compliance requirements
+            if fraud_typology['compliance_requirements']:
+                answer_parts.append("**✅ COMPLIANCE CHECKLIST:**")
+                for requirement in fraud_typology['compliance_requirements']:
+                    answer_parts.append(f"  ☐ {requirement}")
+                answer_parts.append("")
+            
+            # Regulatory context section - always show for regulatory queries
+            if is_regulatory_query:
+                answer_parts.append(f"**REGULATORY CONTEXT:**")
+                if sebi_query_results:
+                    answer_parts.append(f"\n**Supporting SEBI Regulation Documents:**\n")
+                    # Prioritize AML/money laundering/fraud related documents
+                    # Filter out irrelevant regulations first (employee benefits, listing obligations, etc.)
+                    relevant_results = []
+                    irrelevant_keywords = ['employee benefit', 'sweat equity', 'listing obligation', 'lodr',
+                                         'depositor', 'share based', 'disclosure requirement', 'delisting',
+                                         'takeover', 'issue of capital', 'merchant banker', 'depositories and participants']
+                    
+                    for result in sebi_query_results:
+                        doc_text = result.get('document', '').lower()
+                        doc_title = doc_text[:500]  # Check first 500 chars for title
+                        
+                        # Skip if it's clearly irrelevant (check title first)
+                        if any(irr_kw in doc_title for irr_kw in irrelevant_keywords):
+                            continue
+                        
+                        # Check if document is relevant to AML/money laundering/fraud
+                        is_relevant = any(kw in doc_text for kw in [
+                            'money laundering', 'aml', 'anti-money', 'fraud', 'suspicious transaction',
+                            'pmla', 'prohibition of fraudulent', 'unfair trade', 'anti-money laundering',
+                            'prohibition of insider trading', 'market manipulation', 'fraudulent'
+                        ])
+                        
+                        if is_relevant:
+                            relevant_results.append(result)
+                    
+                    # If we have relevant results, use them; otherwise show a message
+                    if relevant_results:
+                        display_results = relevant_results[:3]
+                    else:
+                        # If no relevant results, show top results but note they may not be directly relevant
+                        display_results = sebi_query_results[:2]
+                        answer_parts.append("*Note: No specific AML/money laundering regulations found in search results. Showing general SEBI regulations.*\n")
+                    
+                    for i, result in enumerate(display_results, 1):
+                        doc_text = result.get('document', '')
+                        score = result.get('score', 0)
+                        
+                        # Use DocumentTitleExtractor for clean, maintainable title extraction
+                        # This replaces 116 lines of complex regex/heuristic logic
+                        title = self.title_extractor.extract(doc_text)
+                        
+                        # Extract relevant excerpt (prefer AML/money laundering sections)
+                        excerpt = ""
+                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower():
+                            aml_pos = doc_text.lower().find('money laundering')
+                            if aml_pos > 0:
+                                start = max(0, aml_pos - 30)
+                                excerpt = doc_text[start:start+280].strip()
+                        if not excerpt:
+                            excerpt = doc_text[:250].strip()
+                        
+                        answer_parts.append(f"{i}. **{title}** (Relevance: {score:.1%})")
+                        if excerpt:
+                            answer_parts.append(f"   {excerpt}...")
+                        answer_parts.append("")
+                    
+                    # Note if results were filtered
+                    if relevant_results and len(relevant_results) < len(sebi_query_results):
+                        answer_parts.append(f"*Note: Showing {len(display_results)} most relevant AML/money laundering regulations out of {len(sebi_query_results)} total results.*\n")
+                if sebi_cases:
+                    answer_parts.append(f"\n**📚 SIMILAR SEBI ENFORCEMENT CASES & PRECEDENTS:**")
+                    answer_parts.append(f"Found {len(sebi_cases)} enforcement cases with similar patterns:\n")
+                    for idx, case in enumerate(sebi_cases[:3], 1):
+                        case_name = case.get('name', f"Case {idx}")
+                        violation_type = case.get('violation_type', 'Unknown')
+                        # Extract penalty information if available
+                        penalty_amount = case.get('penalty_amount', 'Not specified')
+                        outcome = case.get('outcome', 'Under investigation')
+                        
+                        answer_parts.append(f"{idx}. **{case_name}**")
+                        answer_parts.append(f"   Violation: {violation_type}")
+                        if penalty_amount and penalty_amount != 'Not specified':
+                            answer_parts.append(f"   Penalty: ₹{penalty_amount}")
+                        answer_parts.append(f"   Outcome: {outcome}")
+                        answer_parts.append(f"   Relevance: Pattern similarity with current account\n")
+                    
+                    # Calculate average penalty if available
+                    penalties = [case.get('penalty_amount') for case in sebi_cases if case.get('penalty_amount') and isinstance(case.get('penalty_amount'), (int, float))]
+                    if penalties:
+                        avg_penalty = sum(penalties) / len(penalties)
+                        answer_parts.append(f"**⚠️ Historical Context:** Average penalty for similar violations: ₹{avg_penalty:,.0f}")
+                        answer_parts.append(f"**Risk Exposure:** Failure to address this pattern may result in penalties of ₹{avg_penalty*0.8:,.0f} - ₹{avg_penalty*1.5:,.0f}\n")
+                answer_parts.append("")
+            elif sebi_cases:
+                # For non-regulatory queries, show brief regulatory context
                 answer_parts.append(f"**REGULATORY CONTEXT:**")
                 answer_parts.append(f"- {len(sebi_cases)} similar SEBI enforcement cases found")
                 answer_parts.append(f"- Pattern matches SEBI violations with 85% confidence")
@@ -1508,12 +2133,27 @@ Provide a clear, factual answer based on the evidence:
                 answer_parts.append(f"  • No significant risk factors detected")
             answer_parts.append(f"- SAR Filing: {'REQUIRED' if risk_level in ['CRITICAL', 'HIGH'] else 'RECOMMENDED' if risk_level == 'MEDIUM' else 'NOT REQUIRED'}")
             
+            # Ensure SEBI results are included (from both rag_results and sebi_query_results)
+            all_sebi_results = rag_results.get('sebi_results', [])
+            # Make sure sebi_query_results are included (they should already be merged, but double-check)
+            if sebi_query_results:
+                existing_ids = {r.get('id', '') for r in all_sebi_results}
+                for result in sebi_query_results:
+                    if result.get('id', '') not in existing_ids:
+                        all_sebi_results.append(result)
+            
+            # Determine if graph context was used
+            # Account trace always uses graph context (AMLSim graph for tracing)
+            graph_context_used = bool(money_flow) or bool(sebi_cases) or bool(sebi_query_results)
+            
             # Return in unified query format
             return {
-                'query_type': 'transactional_trace',
+                'query': original_query if original_query else f"Trace account {account_id}",
+                'query_type': 'transactional_trace' if not is_regulatory_query else 'regulatory_analysis',
                 'answer': '\n'.join(answer_parts),
                 'confidence': 0.95,
-                'sebi_results': rag_results.get('sebi_results', []),
+                'graph_context_used': graph_context_used,
+                'sebi_results': all_sebi_results,
                 'amlsim_results': rag_results.get('amlsim_results', []),
                 'sebi_entities': sebi_cases,
                 'amlsim_patterns': [money_flow],
@@ -1528,9 +2168,11 @@ Provide a clear, factual answer based on the evidence:
         except Exception as e:
             logger.error(f"Error in account trace processing: {e}")
             return {
+                'query': original_query if original_query else f"Trace account {account_id}",
                 'query_type': 'transactional_trace',
                 'answer': f"## ERROR IN ACCOUNT ANALYSIS\n\n**Account ID:** {account_id}\n\n**Error:** {str(e)}\n\n**Recommendation:** Please try again or contact support if the issue persists.",
                 'confidence': 0.0,
+                'graph_context_used': False,
                 'sebi_results': [],
                 'amlsim_results': [],
                 'cross_domain_patterns': 0,

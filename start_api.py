@@ -21,12 +21,15 @@ try:
     import uvicorn
     
     print("SUCCESS: Advanced API imported successfully")
-    print("STARTING: Advanced API Server on http://localhost:8001")
+    
+    # Import settings after app import to avoid circular import
+    from src.core.config import settings
+    print(f"STARTING: Advanced API Server on http://{settings.api_host}:{settings.api_port}")
     
     uvicorn.run(
         app,
-        host="127.0.0.1",
-        port=8001,
+        host=settings.api_host,
+        port=settings.api_port,
         log_level="info",
         reload=False
     )

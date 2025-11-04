@@ -1,0 +1,739 @@
+================================================================================
+COMPREHENSIVE TEST RESULTS - WITH ASSERTIONS
+================================================================================
+
+Test Run: 2025-11-04T04:29:14.858485
+Description: Comprehensive test with assertions and validation
+
+================================================================================
+SUMMARY
+================================================================================
+Total Tests: 27
+Successful Tests: 2
+Failed Tests: 25
+Success Rate: 7.4%
+Total Duration Seconds: 1392.16574
+Average Duration Seconds: 51.56169407407407
+
+================================================================================
+CATEGORY BREAKDOWN
+================================================================================
+
+SEBI_REGULATORY:
+  Total: 5
+  Passed: 0
+  Failed: 5
+  Success Rate: 0.0%
+
+AMLSIM_TRANSACTION:
+  Total: 5
+  Passed: 0
+  Failed: 5
+  Success Rate: 0.0%
+
+CROSS_DOMAIN:
+  Total: 5
+  Passed: 0
+  Failed: 5
+  Success Rate: 0.0%
+
+COMPLEX_ANALYSIS:
+  Total: 4
+  Passed: 0
+  Failed: 4
+  Success Rate: 0.0%
+
+ACCOUNT_SPECIFIC:
+  Total: 2
+  Passed: 0
+  Failed: 2
+  Success Rate: 0.0%
+
+BASELINE:
+  Total: 2
+  Passed: 2
+  Failed: 0
+  Success Rate: 100.0%
+
+EDGE_CASE:
+  Total: 4
+  Passed: 0
+  Failed: 4
+  Success Rate: 0.0%
+
+================================================================================
+PERFORMANCE SUMMARY
+================================================================================
+{
+  "total_tests": 27,
+  "total_violations": 24,
+  "violation_rate": "88.9%",
+  "average_duration": 51.56169407407407,
+  "max_duration": {
+    "test_name": "CROSS-3: Market Manipulation",
+    "duration": 88.910023,
+    "test_type": "cross_domain",
+    "threshold": 20.0
+  },
+  "min_duration": {
+    "test_name": "ACCOUNT-2: Transaction Network",
+    "duration": 0.091927,
+    "test_type": "account_trace",
+    "threshold": 2.0
+  },
+  "violations": [
+    {
+      "test_name": "SEBI-1: Insider Trading Detection",
+      "duration": 42.369839,
+      "threshold": 8.0,
+      "overage": 34.369839,
+      "overage_pct": 429.62298749999997
+    },
+    {
+      "test_name": "SEBI-2: Market Manipulation Cases",
+      "duration": 39.074091,
+      "threshold": 8.0,
+      "overage": 31.074091000000003,
+      "overage_pct": 388.42613750000004
+    },
+    {
+      "test_name": "SEBI-3: Penalty Precedents",
+      "duration": 66.32424,
+      "threshold": 8.0,
+      "overage": 58.32424,
+      "overage_pct": 729.053
+    },
+    {
+      "test_name": "SEBI-4: Regulatory Framework",
+      "duration": 73.618878,
+      "threshold": 8.0,
+      "overage": 65.618878,
+      "overage_pct": 820.2359749999999
+    },
+    {
+      "test_name": "SEBI-5: Price Rigging",
+      "duration": 58.047215,
+      "threshold": 8.0,
+      "overage": 50.047215,
+      "overage_pct": 625.5901875000001
+    },
+    {
+      "test_name": "AMLSIM-2: Money Laundering Patterns",
+      "duration": 53.6814,
+      "threshold": 8.0,
+      "overage": 45.6814,
+      "overage_pct": 571.0174999999999
+    },
+    {
+      "test_name": "AMLSIM-3: High-Risk Accounts",
+      "duration": 55.142839,
+      "threshold": 8.0,
+      "overage": 47.142839,
+      "overage_pct": 589.2854875
+    },
+    {
+      "test_name": "AMLSIM-4: Fan-Out Pattern",
+      "duration": 49.990425,
+      "threshold": 8.0,
+      "overage": 41.990425,
+      "overage_pct": 524.8803125000001
+    },
+    {
+      "test_name": "AMLSIM-5: Scatter-Gather",
+      "duration": 51.130604,
+      "threshold": 8.0,
+      "overage": 43.130604,
+      "overage_pct": 539.1325499999999
+    },
+    {
+      "test_name": "CROSS-1: Transaction vs SEBI Violations",
+      "duration": 43.455941,
+      "threshold": 20.0,
+      "overage": 23.455941000000003,
+      "overage_pct": 117.27970500000002
+    },
+    {
+      "test_name": "CROSS-2: Insider Trading Detection",
+      "duration": 66.591073,
+      "threshold": 20.0,
+      "overage": 46.591072999999994,
+      "overage_pct": 232.95536499999997
+    },
+    {
+      "test_name": "CROSS-3: Market Manipulation",
+      "duration": 88.910023,
+      "threshold": 20.0,
+      "overage": 68.910023,
+      "overage_pct": 344.55011499999995
+    },
+    {
+      "test_name": "CROSS-4: Layering Detection",
+      "duration": 55.537417,
+      "threshold": 20.0,
+      "overage": 35.537417,
+      "overage_pct": 177.687085
+    },
+    {
+      "test_name": "CROSS-5: Regulatory Compliance",
+      "duration": 64.268376,
+      "threshold": 20.0,
+      "overage": 44.268376,
+      "overage_pct": 221.34188000000003
+    },
+    {
+      "test_name": "ANALYSIS-1: Fraud Typology",
+      "duration": 73.364127,
+      "threshold": 25.0,
+      "overage": 48.364126999999996,
+      "overage_pct": 193.45650799999999
+    },
+    {
+      "test_name": "ANALYSIS-2: Risk Assessment",
+      "duration": 73.902586,
+      "threshold": 25.0,
+      "overage": 48.902586,
+      "overage_pct": 195.610344
+    },
+    {
+      "test_name": "ANALYSIS-3: Investigation Priorities",
+      "duration": 57.320149,
+      "threshold": 25.0,
+      "overage": 32.320149,
+      "overage_pct": 129.280596
+    },
+    {
+      "test_name": "ANALYSIS-4: Pattern Evolution",
+      "duration": 58.873757,
+      "threshold": 25.0,
+      "overage": 33.873757,
+      "overage_pct": 135.495028
+    },
+    {
+      "test_name": "BASELINE-1: SEBI Without Graph",
+      "duration": 31.038672,
+      "threshold": 5.0,
+      "overage": 26.038672,
+      "overage_pct": 520.7734399999999
+    },
+    {
+      "test_name": "BASELINE-2: Pattern Without Graph",
+      "duration": 62.891601,
+      "threshold": 5.0,
+      "overage": 57.891601,
+      "overage_pct": 1157.83202
+    },
+    {
+      "test_name": "EDGE-1: Very Specific Query",
+      "duration": 23.239934,
+      "threshold": 15.0,
+      "overage": 8.239934000000002,
+      "overage_pct": 54.93289333333335
+    },
+    {
+      "test_name": "EDGE-2: Broad Query",
+      "duration": 78.94663,
+      "threshold": 15.0,
+      "overage": 63.94663,
+      "overage_pct": 426.31086666666664
+    },
+    {
+      "test_name": "EDGE-3: Ambiguous Query",
+      "duration": 66.083542,
+      "threshold": 15.0,
+      "overage": 51.083541999999994,
+      "overage_pct": 340.55694666666665
+    },
+    {
+      "test_name": "EDGE-4: Multi-aspect Query",
+      "duration": 58.045785,
+      "threshold": 15.0,
+      "overage": 43.045785,
+      "overage_pct": 286.97190000000006
+    }
+  ]
+}
+
+================================================================================
+CACHE EFFECTIVENESS
+================================================================================
+First query: 68.42s
+Second query: 0.03s
+Speedup: 2698.12x
+Effective: YES
+
+
+================================================================================
+DETAILED TEST RESULTS
+================================================================================
+
+--------------------------------------------------------------------------------
+Test: SEBI-1: Insider Trading Detection
+Category: sebi_regulatory
+Query: What are the key indicators of insider trading according to SEBI regulations?
+Duration: 42.37s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: SEBI-2: Market Manipulation Cases
+Category: sebi_regulatory
+Query: Show me SEBI cases involving market manipulation and pump-and-dump schemes
+Duration: 39.07s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 3
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+
+Assertions Failed: 2
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+  ✗ Document relevance: Low relevance: 0.0% of docs contain keywords (threshold: 20.0%)
+
+--------------------------------------------------------------------------------
+Test: SEBI-3: Penalty Precedents
+Category: sebi_regulatory
+Query: What penalties has SEBI imposed for front running violations?
+Duration: 66.32s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: SEBI-4: Regulatory Framework
+Category: sebi_regulatory
+Query: Explain SEBI's regulatory framework for detecting circular trading
+Duration: 73.62s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: SEBI-5: Price Rigging
+Category: sebi_regulatory
+Query: Find SEBI orders related to price rigging and artificial price inflation
+Duration: 58.05s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 3
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+
+Assertions Failed: 2
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+  ✗ Document relevance: Low relevance: 10.0% of docs contain keywords (threshold: 20.0%)
+
+--------------------------------------------------------------------------------
+Test: AMLSIM-1: Account Tracing
+Category: amlsim_transaction
+Query: Trace all transactions for account 3
+Duration: 0.12s
+Success: ✗ FAIL
+Performance: ✓ OK
+
+Assertions Passed: 3
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 2
+  ✗ Result structure: Missing required key: query
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: AMLSIM-2: Money Laundering Patterns
+Category: amlsim_transaction
+Query: What money laundering patterns exist in the transaction data?
+Duration: 53.68s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: AMLSIM-3: High-Risk Accounts
+Category: amlsim_transaction
+Query: Identify accounts with suspicious transaction patterns
+Duration: 55.14s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: AMLSIM-4: Fan-Out Pattern
+Category: amlsim_transaction
+Query: Find examples of fan-out money laundering patterns
+Duration: 49.99s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: AMLSIM-5: Scatter-Gather
+Category: amlsim_transaction
+Query: Show me scatter-gather transaction patterns that indicate layering
+Duration: 51.13s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 3
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+
+Assertions Failed: 2
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+  ✗ Document relevance: Low relevance: 0.0% of docs contain keywords (threshold: 20.0%)
+
+--------------------------------------------------------------------------------
+Test: CROSS-1: Transaction vs SEBI Violations
+Category: cross_domain
+Query: Which transaction patterns in AMLSim align with SEBI's definition of circular trading?
+Duration: 43.46s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: CROSS-2: Insider Trading Detection
+Category: cross_domain
+Query: How can we detect insider trading using transaction patterns combined with SEBI precedents?
+Duration: 66.59s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: CROSS-3: Market Manipulation
+Category: cross_domain
+Query: Find transaction patterns that match SEBI market manipulation violations
+Duration: 88.91s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: CROSS-4: Layering Detection
+Category: cross_domain
+Query: What layering patterns in transactions correspond to SEBI front running cases?
+Duration: 55.54s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: CROSS-5: Regulatory Compliance
+Category: cross_domain
+Query: Based on SEBI regulations, which accounts show potential violations?
+Duration: 64.27s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ANALYSIS-1: Fraud Typology
+Category: complex_analysis
+Query: Compare and contrast different fraud typologies across SEBI and AMLSim data
+Duration: 73.36s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ANALYSIS-2: Risk Assessment
+Category: complex_analysis
+Query: What risk indicators should we monitor based on both regulatory violations and transaction patterns?
+Duration: 73.90s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ANALYSIS-3: Investigation Priorities
+Category: complex_analysis
+Query: Which accounts should be prioritized for investigation based on SEBI precedents?
+Duration: 57.32s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ANALYSIS-4: Pattern Evolution
+Category: complex_analysis
+Query: How have money laundering patterns evolved based on regulatory enforcement?
+Duration: 58.87s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ACCOUNT-1: Account Risk Profile
+Category: account_specific
+Query: What is the risk profile of account 14?
+Duration: 0.10s
+Success: ✗ FAIL
+Performance: ✓ OK
+
+Assertions Passed: 3
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 2
+  ✗ Result structure: Missing required key: query
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: ACCOUNT-2: Transaction Network
+Category: account_specific
+Query: Map the transaction network for account 52
+Duration: 0.09s
+Success: ✗ FAIL
+Performance: ✓ OK
+
+Assertions Passed: 3
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 2
+  ✗ Result structure: Missing required key: query
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: BASELINE-1: SEBI Without Graph
+Category: baseline
+Query: What are SEBI penalties for insider trading?
+Duration: 31.04s
+Success: ✓ PASS
+Performance: ⚠ SLOW
+
+Assertions Passed: 5
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Graph enhancement
+  ✓ Document relevance
+
+Assertions Failed: 0
+
+Result Summary:
+  Query Type: regulatory
+  Graph Used: False
+  Answer Length: 2528 chars
+  Sources: 0
+
+--------------------------------------------------------------------------------
+Test: BASELINE-2: Pattern Without Graph
+Category: baseline
+Query: Explain money laundering patterns
+Duration: 62.89s
+Success: ✓ PASS
+Performance: ⚠ SLOW
+
+Assertions Passed: 5
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Graph enhancement
+  ✓ Document relevance
+
+Assertions Failed: 0
+
+Result Summary:
+  Query Type: combined
+  Graph Used: False
+  Answer Length: 3782 chars
+  Sources: 0
+
+--------------------------------------------------------------------------------
+Test: EDGE-1: Very Specific Query
+Category: edge_case
+Query: What was the penalty amount in SEBI order WTM/AB/IVD1/24/2019 for XYZ company?
+Duration: 23.24s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: EDGE-2: Broad Query
+Category: edge_case
+Query: Tell me everything about financial fraud
+Duration: 78.95s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: EDGE-3: Ambiguous Query
+Category: edge_case
+Query: suspicious activity
+Duration: 66.08s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+
+--------------------------------------------------------------------------------
+Test: EDGE-4: Multi-aspect Query
+Category: edge_case
+Query: Compare insider trading penalties in SEBI cases with transaction patterns showing timing advantages
+Duration: 58.05s
+Success: ✗ FAIL
+Performance: ⚠ SLOW
+
+Assertions Passed: 4
+  ✓ Result structure
+  ✓ Answer quality
+  ✓ Sources present
+  ✓ Document relevance
+
+Assertions Failed: 1
+  ✗ Graph enhancement: use_graphs=True but graph_context_used=False
+

@@ -22,8 +22,8 @@ st.set_page_config(
 )
 
 # API Configuration
-API_BASE_URL = "http://localhost:8001"  # Advanced API Server
-API_KEY = "dev-api-key"  # Default API key for development
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8001")  # Advanced API Server
+API_KEY = os.getenv("API_KEY", "dev-api-key")  # Default API key for development
 
 # Initialize session state
 if 'cases' not in st.session_state:

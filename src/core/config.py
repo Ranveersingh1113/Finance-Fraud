@@ -17,8 +17,11 @@ class Settings(BaseSettings):
     
     # API Configuration
     api_host: str = Field(default="0.0.0.0", env="API_HOST")
-    api_port: int = Field(default=8000, env="API_PORT")
+    api_port: int = Field(default=8001, env="API_PORT")
     api_key: str = Field(default="dev-api-key", env="API_KEY")
+    
+    # CORS Configuration
+    cors_origins: str = Field(default="*", env="CORS_ORIGINS")
     
     # Database Configuration
     chroma_persist_directory: str = Field(
@@ -38,6 +41,22 @@ class Settings(BaseSettings):
     reranker_model: str = Field(
         default="ms-marco-MiniLM-L-12-v2",
         env="RERANKER_MODEL"
+    )
+    
+    # Ollama Configuration
+    ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
+    ollama_model: str = Field(default="llama3.1:8b", env="OLLAMA_MODEL")
+    
+    # Case Management
+    cases_db_path: str = Field(
+        default="./data/cases.db",
+        env="CASES_DB_PATH"
+    )
+    
+    # Graph Storage
+    graphs_directory: str = Field(
+        default="./data/graphs",
+        env="GRAPHS_DIRECTORY"
     )
     
     # Device Configuration (GPU/CPU)
@@ -116,6 +135,9 @@ class Settings(BaseSettings):
         Path(self.chroma_persist_directory).mkdir(parents=True, exist_ok=True)
         Path(self.ieee_cis_data_path).mkdir(parents=True, exist_ok=True)
         Path(self.sebi_data_path).mkdir(parents=True, exist_ok=True)
+        Path(self.graphs_directory).mkdir(parents=True, exist_ok=True)
+        # Ensure cases db directory exists
+        Path(self.cases_db_path).parent.mkdir(parents=True, exist_ok=True)
 
 
 # Global settings instance

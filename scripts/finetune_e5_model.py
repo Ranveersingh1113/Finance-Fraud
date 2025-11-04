@@ -65,15 +65,23 @@ class E5FineTuner:
         
         self.model = None
         self.device = device
+    
+    def _estimate_memory_requirement(self, batch_size: int) -> float:
+        """
+        Estimate GPU memory requirement.
         
-        logger.info(f"=" * 70)
-        logger.info(f"FIN-E5 FINE-TUNING SETUP")
-        logger.info(f"=" * 70)
-        logger.info(f"Base model: {base_model}")
-        logger.info(f"Device: {self.device}")
-        logger.info(f"Training data: {training_data_file}")
-        logger.info(f"Output: {output_dir}")
-        logger.info(f"=" * 70)
+        E5-base: ~440MB model
+        + batch_size * sequence_length * hidden_dim * 4 bytes (forward pass)
+        + gradients (2x model size)
+        + optimizer state (2x model size)
+        """
+        model_size_gb = 0.44  # E5-base model size
+        activation_gb = (batch_size * 512 * 768 * 4) / 1e9  # Activations
+        optimizer_gb = model_size_gb * 2  # Adam optimizer
+        gradient_gb = model_size_gb
+        
+        total = model_size_gb + activation_gb + optimizer_gb + gradient_gb
+        return total * 1.2  # Add 20% buffer
     
     def load_training_data(self) -> List[InputExample]:
         """
@@ -230,6 +238,15 @@ class E5FineTuner:
         
         # Create evaluator
         evaluator = self.create_evaluation_set(training_examples)
+        
+        # Check GPU memory
+        if torch.cuda.is_available():
+            gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1e9
+            logger.info(f"\nGPU Memory:")
+            logger.info(f"  • Total: {gpu_mem:.2f} GB")
+            logger.info(f"  • Required (estimated): {self._estimate_memory_requirement(batch_size):.2f} GB")
+            if gpu_mem < 6.0:
+                logger.warning(f"  ⚠️  Low GPU memory! Consider --batch-size 8")
         
         # Training configuration
         logger.info(f"\nTraining configuration:")

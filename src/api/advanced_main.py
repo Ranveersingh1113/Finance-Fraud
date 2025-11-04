@@ -67,9 +67,11 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# Parse CORS origins from environment variable (comma-separated or "*" for all)
+cors_origins_list = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -195,7 +197,7 @@ class HealthResponse(BaseModel):
 
 class CaseRequest(BaseModel):
     """Request model for case creation."""
-    case_id: str
+    case_id: Optional[str] = None  # Optional - will be auto-generated if not provided
     description: str
     priority: str = "medium"  # low, medium, high, critical
     analyst: str
@@ -221,14 +223,14 @@ async def startup_event():
         # Initialize advanced components
         rag_engine = AdvancedRAGEngine(
             persist_directory=settings.chroma_persist_directory,
-            ollama_model="llama3.1:8b",
-            ollama_host="http://localhost:11434"
+            ollama_model=settings.ollama_model,
+            ollama_host=settings.ollama_host
         )
         
         data_ingestion = DataIngestion()
         
         # Initialize case manager
-        case_manager = CaseManager(db_path="./data/cases.db")
+        case_manager = CaseManager(db_path=settings.cases_db_path)
         logger.info("Case manager initialized")
         
         # Check if SEBI data already exists in ChromaDB
@@ -254,9 +256,10 @@ async def startup_event():
         try:
             from src.core.unified_graphrag_engine import UnifiedGraphRAGEngine
             unified_engine = UnifiedGraphRAGEngine(
-                persist_directory="./data/graphs",
-                chroma_directory="./data/chroma_db",
-                ollama_model="llama3.1:8b"
+                persist_directory=settings.graphs_directory,
+                chroma_directory=settings.chroma_persist_directory,
+                ollama_model=settings.ollama_model,
+                ollama_host=settings.ollama_host
             )
             logger.info("Unified GraphRAG Engine initialized with cached patterns")
         except Exception as e:
@@ -507,6 +510,12 @@ async def create_case(request: CaseRequest, background_tasks: BackgroundTasks, a
         if not case_manager:
             raise HTTPException(status_code=500, detail="Case manager not initialized")
         
+        # Generate case_id if not provided
+        if not request.case_id:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            request.case_id = f"CASE_{timestamp}"
+        
         # Create case in database
         case_data = case_manager.create_case(
             case_id=request.case_id,
@@ -585,20 +594,125 @@ async def analyze_case(case_id: str, query: str = Query(..., description="Analys
         if not case_data:
             raise HTTPException(status_code=404, detail=f"Case {case_id} not found")
         
-        # Perform analysis
-        rag_response = await rag_engine.query(query, n_results=10)
+        # Smart routing: Detect query intent to route appropriately
+        query_lower = query.lower()
         
-        # Save query to case
-        evidence_list = [
-            {
-                'rank': i + 1,
-                'score': result.final_score or result.similarity_score,
-                'document': result.document[:500],
-                'source': result.source,
-                'metadata': result.metadata
-            }
-            for i, result in enumerate(rag_response.evidence)
-        ]
+        # Detect regulatory/SEBI queries (higher priority)
+        regulatory_keywords = ['sebi', 'regulation', 'regulatory', 'compliance', 'violation', 'penalty', 
+                              'precedent', 'enforcement', 'rule', 'law', 'legal', 'regulatory context']
+        is_regulatory_query = any(keyword in query_lower for keyword in regulatory_keywords)
+        
+        # Detect transaction-related queries
+        transaction_keywords = ['cash flow', 'cashflow', 'balance', 'transfer', 'payment', 
+                               'deposit', 'withdrawal', 'send', 'receive', 'amount', 'money', 'fund']
+        # Only consider "account" as transaction keyword if not in regulatory context
+        is_transaction_query = any(keyword in query_lower for keyword in transaction_keywords) or \
+                              ('account' in query_lower and not is_regulatory_query)
+        
+        # Use unified engine for hybrid queries (regulatory + account) or transaction queries
+        # Use basic RAG for pure regulatory queries without account context
+        if unified_engine and (is_regulatory_query or is_transaction_query):
+            if is_regulatory_query:
+                logger.info(f"Routing regulatory query to unified GraphRAG engine: {query}")
+            else:
+                logger.info(f"Routing transaction query to unified GraphRAG engine: {query}")
+            import time
+            start_time = time.time()
+            
+            unified_result = await unified_engine.unified_query(
+                query=query,
+                use_graphs=True,
+                n_results=10
+            )
+            
+            processing_time = time.time() - start_time
+            
+            # Convert unified result to RAG response format
+            evidence = []
+            
+            # Prioritize based on query type
+            if is_regulatory_query:
+                # For regulatory queries, prioritize SEBI results
+                for i, doc in enumerate(unified_result.get('sebi_results', [])[:10]):
+                    evidence.append({
+                        'rank': i + 1,
+                        'score': doc.get('score', 0),
+                        'document': doc.get('document', ''),
+                        'source': 'sebi_regulation',
+                        'metadata': doc.get('metadata', {})
+                    })
+                
+                # Add transaction results for context (fewer for regulatory queries)
+                for i, doc in enumerate(unified_result.get('amlsim_results', [])[:5]):
+                    evidence.append({
+                        'rank': len(evidence) + 1,
+                        'score': doc.get('score', 0),
+                        'document': doc.get('document', ''),
+                        'source': 'amlsim_transaction',
+                        'metadata': doc.get('metadata', {})
+                    })
+            else:
+                # For transaction queries, prioritize transaction results
+                for i, doc in enumerate(unified_result.get('amlsim_results', [])[:10]):
+                    evidence.append({
+                        'rank': i + 1,
+                        'score': doc.get('score', 0),
+                        'document': doc.get('document', ''),
+                        'source': 'amlsim_transaction',
+                        'metadata': doc.get('metadata', {})
+                    })
+                
+                # Add SEBI results (fewer for transaction queries)
+                for i, doc in enumerate(unified_result.get('sebi_results', [])[:3]):
+                    evidence.append({
+                        'rank': len(evidence) + 1,
+                        'score': doc.get('score', 0),
+                        'document': doc.get('document', ''),
+                        'source': 'sebi_regulation',
+                        'metadata': doc.get('metadata', {})
+                    })
+            
+            # Calculate confidence based on evidence quality
+            if evidence:
+                avg_score = sum(d.get('score', 0) for d in evidence) / len(evidence)
+                confidence = min(0.95, 0.5 + avg_score * 0.5)  # Scale to 0.5-0.95 range
+            else:
+                confidence = 0.3
+            
+            # Create RAGResponse-like structure
+            rag_response = type('RAGResponse', (), {
+                'answer': unified_result.get('answer', 'No answer generated'),
+                'confidence_score': confidence,
+                'query_type': unified_result.get('query_type', 'transaction'),
+                'processing_time': processing_time,
+                'evidence': evidence
+            })()
+        else:
+            # Use basic RAG engine for regulatory/SEBI queries
+            logger.info(f"Routing query to basic RAG engine: {query}")
+            rag_response = await rag_engine.query(query, n_results=10)
+        
+        # Save query to case (handle both QueryResult objects and dict evidence)
+        evidence_list = []
+        for i, evidence_item in enumerate(rag_response.evidence):
+            if isinstance(evidence_item, dict):
+                # Already in dict format (from unified engine)
+                evidence_list.append({
+                    'rank': evidence_item.get('rank', i + 1),
+                    'score': evidence_item.get('score', 0),
+                    'document': evidence_item.get('document', '')[:500],
+                    'source': evidence_item.get('source', 'unknown'),
+                    'metadata': evidence_item.get('metadata', {})
+                })
+            else:
+                # QueryResult object (from basic RAG engine)
+                evidence_list.append({
+                    'rank': i + 1,
+                    'score': evidence_item.final_score or evidence_item.similarity_score,
+                    'document': evidence_item.document[:500],
+                    'source': getattr(evidence_item, 'source', 'unknown'),
+                    'metadata': evidence_item.metadata
+                })
         
         case_manager.add_query_to_case(
             case_id=case_id,
@@ -756,6 +870,60 @@ async def get_sar_reports(case_id: str, api_key: str = Depends(get_api_key)):
         raise HTTPException(status_code=500, detail=f"Get SAR reports failed: {str(e)}")
 
 
+@app.get("/graph/account/{account_id}")
+async def get_account_graph(
+    account_id: str,
+    hops: int = Query(default=2, ge=1, le=3, description="Number of hops to traverse (1-3)"),
+    max_nodes: int = Query(default=200, ge=50, le=500, description="Maximum nodes to return (50-500)"),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Get ego network (local subgraph) for a specific account.
+    Returns only the nodes and edges within N hops of the account.
+    Requires API key authentication.
+    
+    Args:
+        account_id: Account ID (e.g., '108' or 'account_108')
+        hops: Number of hops to traverse (default 2, max 3)
+        max_nodes: Maximum nodes to return for performance (default 200, max 500)
+    
+    Returns:
+        Graph data with nodes, edges, and statistics
+    """
+    try:
+        if not unified_engine:
+            raise HTTPException(status_code=500, detail="Unified GraphRAG engine not initialized")
+        
+        # Normalize account ID format
+        if not account_id.startswith('account_'):
+            account_id = f'account_{account_id}'
+        
+        # Extract ego network from AMLSim graph
+        graph_data = unified_engine.amlsim_manager.get_ego_network(
+            account_id=account_id,
+            max_hops=hops,
+            max_nodes=max_nodes
+        )
+        
+        if 'error' in graph_data:
+            raise HTTPException(status_code=404, detail=graph_data['error'])
+        
+        logger.info(f"Graph extracted for {account_id}: {graph_data['stats']['total_nodes']} nodes, {graph_data['stats']['total_edges']} edges")
+        
+        return {
+            "success": True,
+            "account_id": account_id,
+            "graph": graph_data,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Graph extraction error for {account_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Graph extraction failed: {str(e)}")
+
+
 @app.get("/stats")
 async def get_system_stats():
     """Get comprehensive system statistics."""
@@ -789,7 +957,7 @@ async def log_case_creation(case_id: str, description: str):
 if __name__ == "__main__":
     uvicorn.run(
         "src.api.advanced_main:app",
-        host="127.0.0.1",
-        port=8001,
+        host=settings.api_host,
+        port=settings.api_port,
         reload=False
     )

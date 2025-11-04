@@ -436,6 +436,145 @@ class AMLSimGraphManager(GraphManager):
             'top_fan_in': fan_in[:5] if fan_in else []
         }
     
+    def get_ego_network(self, account_id: str, max_hops: int = 2, max_nodes: int = 200) -> Dict[str, Any]:
+        """
+        Extract ego network (local subgraph) for a specific account.
+        Returns nodes and edges within N hops, limited to max_nodes for performance.
+        
+        Args:
+            account_id: Account to extract network for (e.g., 'account_108')
+            max_hops: Number of hops to traverse (default 2)
+            max_nodes: Maximum nodes to return (default 200 for visualization performance)
+            
+        Returns:
+            Dict with nodes, edges, and center account info
+        """
+        if account_id not in self.graph:
+            return {
+                'error': f'Account {account_id} not found',
+                'nodes': [],
+                'edges': [],
+                'center_account': account_id
+            }
+        
+        # BFS to find nodes within N hops
+        visited = {account_id}
+        current_level = {account_id}
+        all_nodes = {account_id}
+        
+        for hop in range(max_hops):
+            next_level = set()
+            for node in current_level:
+                # Get all neighbors (both incoming and outgoing)
+                neighbors = set(self.graph.neighbors(node))
+                # Also get predecessors (for directed graph)
+                neighbors.update(self.graph.predecessors(node))
+                
+                for neighbor in neighbors:
+                    if neighbor not in visited and len(all_nodes) < max_nodes:
+                        visited.add(neighbor)
+                        next_level.add(neighbor)
+                        all_nodes.add(neighbor)
+            
+            current_level = next_level
+            if not current_level or len(all_nodes) >= max_nodes:
+                break
+        
+        # Extract subgraph
+        subgraph = self.graph.subgraph(all_nodes)
+        
+        # Format nodes for frontend
+        nodes = []
+        for node_id in subgraph.nodes():
+            node_data = self.get_node(node_id)
+            if not node_data:
+                continue
+            
+            # Determine node type and properties
+            node_type = node_data.get('type', 'Unknown')
+            is_center = (node_id == account_id)
+            
+            # Color coding based on type and flags
+            color = '#3b82f6'  # blue default
+            if is_center:
+                color = '#ef4444'  # red for center account
+            elif node_type == 'Account':
+                if node_data.get('is_fraud'):
+                    color = '#dc2626'  # dark red for fraud
+                elif node_data.get('is_suspicious'):
+                    color = '#f59e0b'  # orange for suspicious
+                else:
+                    color = '#10b981'  # green for normal
+            elif node_type == 'Customer':
+                color = '#8b5cf6'  # purple for customers
+            elif node_type == 'Alert':
+                color = '#f97316'  # orange for alerts
+            
+            # Node size based on transaction volume or importance
+            size = 50 if is_center else 30
+            if node_type == 'Account':
+                # Scale size by balance (but keep reasonable bounds)
+                balance = node_data.get('balance', 0)
+                size = min(60, max(20, 20 + (balance / 100000)))
+            
+            nodes.append({
+                'id': node_id,
+                'label': node_id.replace('account_', 'A').replace('customer_', 'C').replace('alert_', 'Alert'),
+                'type': node_type,
+                'color': color,
+                'size': size,
+                'is_center': is_center,
+                'data': {
+                    'balance': node_data.get('balance', 0),
+                    'country': node_data.get('country', ''),
+                    'business_type': node_data.get('business_type', ''),
+                    'is_suspicious': node_data.get('is_suspicious', False),
+                    'is_fraud': node_data.get('is_fraud', False)
+                }
+            })
+        
+        # Format edges for frontend
+        edges = []
+        edge_id = 0
+        for source, target, edge_data in subgraph.edges(data=True):
+            # Only include SENT_TO relationships (skip RECEIVED_FROM to avoid duplicates)
+            if edge_data.get('relationship_type') == 'SENT_TO':
+                amount = edge_data.get('amount', 0)
+                
+                # Edge thickness based on transaction amount
+                width = min(10, max(1, amount / 10000))
+                
+                edges.append({
+                    'id': f'edge_{edge_id}',
+                    'source': source,
+                    'target': target,
+                    'label': f'${amount:,.0f}',
+                    'width': width,
+                    'type': edge_data.get('relationship_type', 'SENT_TO'),
+                    'data': {
+                        'amount': amount,
+                        'transaction_type': edge_data.get('transaction_type', ''),
+                        'timestamp': edge_data.get('timestamp', 0)
+                    }
+                })
+                edge_id += 1
+        
+        logger.info(f"Extracted ego network for {account_id}: {len(nodes)} nodes, {len(edges)} edges")
+        
+        return {
+            'center_account': account_id,
+            'nodes': nodes,
+            'edges': edges,
+            'stats': {
+                'total_nodes': len(nodes),
+                'total_edges': len(edges),
+                'hops': max_hops,
+                'account_nodes': sum(1 for n in nodes if n['type'] == 'Account'),
+                'suspicious_nodes': sum(1 for n in nodes if n.get('data', {}).get('is_suspicious')),
+                'fraud_nodes': sum(1 for n in nodes if n.get('data', {}).get('is_fraud'))
+            }
+        }
+    
     def extract_fraud_patterns(self, max_hops: int = 2) -> List[Dict]:
         """
         Extract fraud ring patterns from suspicious accounts.
