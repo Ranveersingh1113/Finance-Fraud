@@ -107,3 +107,8 @@ htmlcov/
 # Backup files
 *_backup.*
 *.backup
+
+#Model Files
+.safetensors
+models/fin-e5/
+models/deployed/
