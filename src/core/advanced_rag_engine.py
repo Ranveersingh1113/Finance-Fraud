@@ -630,57 +630,75 @@ Keep your response clear, factual, well-structured, and cite specific examples f
             return "general_fraud"
     
     # Inherit collection management methods from BaselineRAGEngine
-    def add_sebi_chunks(self, chunks: List[ProcessedChunk]) -> None:
-        """Add processed SEBI chunks to the advanced vector database."""
+    def add_sebi_chunks(self, chunks: List[ProcessedChunk], batch_size: int = 100) -> None:
+        """
+        Add processed SEBI chunks to the advanced vector database with batching.
+        
+        Args:
+            chunks: List of ProcessedChunk objects to add
+            batch_size: Number of chunks to process in each batch (default: 100)
+        """
         try:
             if not chunks:
                 logger.warning("No SEBI chunks to add")
                 return
             
-            # Prepare documents
-            documents = []
-            metadatas = []
-            ids = []
+            total_chunks = len(chunks)
+            logger.info(f"Adding {total_chunks} SEBI chunks to vector database (batch size: {batch_size})")
             
-            for chunk in chunks:
-                documents.append(chunk.content)
+            # Process in batches
+            for batch_start in range(0, total_chunks, batch_size):
+                batch_end = min(batch_start + batch_size, total_chunks)
+                batch_chunks = chunks[batch_start:batch_end]
                 
-                # Enhanced metadata for advanced features (ensure no None values)
-                metadata = {
-                    'chunk_id': chunk.chunk_id or '',
-                    'document_id': chunk.document_id or '',
-                    'document_type': chunk.document_type or 'unknown',
-                    'title': chunk.title or '',
-                    'chunk_index': chunk.chunk_index or 0,
-                    'violation_types': ', '.join(chunk.violation_types) if chunk.violation_types else '',
-                    'entities': ', '.join(chunk.entities) if chunk.entities else '',
-                    'keywords': ', '.join(chunk.keywords) if chunk.keywords else '',
-                    'source': 'sebi_processed_advanced',
-                    'content_length': len(chunk.content) if chunk.content else 0,
-                    'word_count': chunk.metadata.get('chunk_word_count', 0) or 0,
-                    'date': str(chunk.date) if chunk.date else '',
-                    'url': chunk.url or ''
-                }
+                # Prepare batch documents
+                documents = []
+                metadatas = []
+                ids = []
                 
-                # Add all document metadata (filter out None values)
-                for key, value in chunk.metadata.items():
-                    if value is not None and isinstance(value, (str, int, float, bool)):
-                        metadata[f"doc_{key}"] = value
+                for chunk in batch_chunks:
+                    documents.append(chunk.content)
+                    
+                    # Enhanced metadata for advanced features (ensure no None values)
+                    metadata = {
+                        'chunk_id': chunk.chunk_id or '',
+                        'document_id': chunk.document_id or '',
+                        'document_type': chunk.document_type or 'unknown',
+                        'title': chunk.title or '',
+                        'chunk_index': chunk.chunk_index or 0,
+                        'violation_types': ', '.join(chunk.violation_types) if chunk.violation_types else '',
+                        'entities': ', '.join(chunk.entities) if chunk.entities else '',
+                        'keywords': ', '.join(chunk.keywords) if chunk.keywords else '',
+                        'source': 'sebi_processed_advanced',
+                        'content_length': len(chunk.content) if chunk.content else 0,
+                        'word_count': chunk.metadata.get('chunk_word_count', 0) or 0,
+                        'date': str(chunk.date) if chunk.date else '',
+                        'url': chunk.url or ''
+                    }
+                    
+                    # Add all document metadata (filter out None values)
+                    for key, value in chunk.metadata.items():
+                        if value is not None and isinstance(value, (str, int, float, bool)):
+                            metadata[f"doc_{key}"] = value
+                    
+                    metadatas.append(metadata)
+                    ids.append(chunk.chunk_id)
                 
-                metadatas.append(metadata)
-                ids.append(chunk.chunk_id)
+                # Generate embeddings for batch
+                logger.debug(f"Generating embeddings for batch {batch_start + 1}-{batch_end} of {total_chunks}")
+                embeddings = self.embedding_model.encode(documents, show_progress_bar=False).tolist()
+                
+                # Add batch to collection
+                self.sebi_collection.add(
+                    documents=documents,
+                    embeddings=embeddings,
+                    metadatas=metadatas,
+                    ids=ids
+                )
+                
+                logger.info(f"Added batch {batch_start + 1}-{batch_end} ({len(documents)} chunks) to vector database")
             
-            # Generate embeddings and add to collection
-            embeddings = self.embedding_model.encode(documents).tolist()
-            
-            self.sebi_collection.add(
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas,
-                ids=ids
-            )
-            
-            logger.info(f"Added {len(documents)} processed SEBI chunks to advanced vector database")
+            logger.info(f"Successfully added all {total_chunks} SEBI chunks to advanced vector database")
             
         except Exception as e:
             logger.error(f"Error adding SEBI chunks: {e}")

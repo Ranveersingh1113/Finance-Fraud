@@ -17,12 +17,14 @@ from pathlib import Path
 from src.data.sebi_processor import SEBIProcessor
 from src.data.sebi_file_processor import SEBIFileProcessor
 from datetime import datetime
+from sentence_transformers import SentenceTransformer
+from src.core.device_config import get_device_string
 
 def rebuild_sebi_chromadb():
-    """Rebuild SEBI ChromaDB from scratch with correct classifications"""
+    """Rebuild SEBI ChromaDB from scratch with correct classifications and embeddings"""
     
     print("\n" + "="*70)
-    print("REBUILDING SEBI CHROMADB WITH CORRECT CLASSIFICATIONS")
+    print("REBUILDING SEBI CHROMADB WITH CORRECTED CHUNKING & EMBEDDINGS")
     print("="*70)
     
     # Initialize ChromaDB client
@@ -30,7 +32,7 @@ def rebuild_sebi_chromadb():
     client = chromadb.PersistentClient(path=str(chroma_path))
     
     # Step 1: Delete existing SEBI collection (ADVANCED version used by unified engine)
-    print("\n[1/4] Deleting existing SEBI collection...")
+    print("\n[1/5] Deleting existing SEBI collection...")
     try:
         client.delete_collection(name="sebi_documents_advanced")
         print("[OK] Deleted old 'sebi_documents_advanced' collection")
@@ -38,21 +40,27 @@ def rebuild_sebi_chromadb():
         print(f"  Note: {e} (collection may not exist)")
     
     # Step 2: Create fresh collection (with ADVANCED suffix)
-    print("\n[2/4] Creating fresh SEBI collection...")
+    print("\n[2/5] Creating fresh SEBI collection...")
     collection = client.get_or_create_collection(
         name="sebi_documents_advanced",
         metadata={"hnsw:space": "cosine", "description": "SEBI documents with advanced features"}
     )
     print("[OK] Created new 'sebi_documents_advanced' collection")
     
-    # Step 3: Initialize processors
-    print("\n[3/4] Initializing processors...")
+    # Step 3: Initialize processors and embedding model
+    print("\n[3/5] Initializing processors and embedding model...")
     sebi_processor = SEBIProcessor()
     file_processor = SEBIFileProcessor()
-    print("[OK] Processors initialized")
+    
+    # Initialize embedding model (same as used in RAG engine)
+    device = get_device_string()
+    print(f"  Using device: {device}")
+    embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=device)
+    print(f"  Loaded embedding model: all-MiniLM-L12-v2")
+    print("[OK] Processors and embedding model initialized")
     
     # Step 4: Process ALL SEBI documents
-    print("\n[4/4] Processing and indexing ALL SEBI documents...")
+    print("\n[4/5] Processing and chunking ALL SEBI documents...")
     
     # Find all SEBI PDF files in both directories
     sebi_dir = Path("data/sebi")
@@ -87,6 +95,12 @@ def rebuild_sebi_chromadb():
         'total_chunks': 0,
         'errors': 0
     }
+    
+    # Batch accumulator for efficient embedding generation
+    batch_documents = []
+    batch_metadatas = []
+    batch_ids = []
+    batch_size = 100  # Process 100 chunks at a time
     
     # Process each PDF
     for i, pdf_path in enumerate(all_pdf_files, 1):
@@ -124,21 +138,14 @@ def rebuild_sebi_chromadb():
                 stats['errors'] += 1
                 continue
             
-            # Prepare for ChromaDB
-            documents = []
-            metadatas = []
-            ids = []
-            
+            # Prepare chunks for batching
             for chunk in chunks:
-                # Each chunk already has all necessary data
-                # ProcessedChunk fields: chunk_id, document_id, document_type, title, content, chunk_index, metadata, keywords, entities, violation_types, url, date
-                
                 # Prepare metadata (ensure ChromaDB compatible types)
                 metadata = {
                     'source': str(pdf_path),
                     'chunk_index': chunk.chunk_index,
-                    'total_chunks': len(chunks),  # Calculate from list length
-                    'document_type': doc_type,  # Corrected classification
+                    'total_chunks': len(chunks),
+                    'document_type': doc_type,
                     'title': doc.title
                 }
                 
@@ -155,31 +162,57 @@ def rebuild_sebi_chromadb():
                         else:
                             clean_metadata[key] = str(value)
                 
-                documents.append(chunk.content)  # Use 'content' not 'text'
-                metadatas.append(clean_metadata)
-                ids.append(chunk.chunk_id)  # Use existing chunk_id
+                # Add to batch
+                batch_documents.append(chunk.content)
+                batch_metadatas.append(clean_metadata)
+                batch_ids.append(chunk.chunk_id)
             
-            # Add to ChromaDB
-            if documents:
-                collection.add(
-                    documents=documents,
-                    metadatas=metadatas,
-                    ids=ids
-                )
-                stats['total_chunks'] += len(documents)
+            stats['total_chunks'] += len(chunks)
+            
+            # Show doc type with marker
+            marker = "[REG]" if doc_type == 'regulation' else "[CASE]"
+            print(f"    [OK] {marker} Type: {doc_type}, Chunks: {len(chunks)}")
+            
+            # Process batch if it reaches batch_size
+            if len(batch_documents) >= batch_size:
+                print(f"  [BATCH] Generating embeddings for {len(batch_documents)} chunks...")
+                embeddings = embedding_model.encode(batch_documents, show_progress_bar=False).tolist()
                 
-                # Show doc type with marker
-                marker = "[REG]" if doc_type == 'regulation' else "[CASE]"
-                print(f"    [OK] {marker} Type: {doc_type}, Chunks: {len(documents)}")
+                collection.add(
+                    documents=batch_documents,
+                    embeddings=embeddings,
+                    metadatas=batch_metadatas,
+                    ids=batch_ids
+                )
+                print(f"  [BATCH] Indexed {len(batch_documents)} chunks to ChromaDB")
+                
+                # Clear batch
+                batch_documents = []
+                batch_metadatas = []
+                batch_ids = []
         
         except Exception as e:
             print(f"    [ERROR] {str(e)[:100]}")
             stats['errors'] += 1
             continue
     
+    # Step 5: Process any remaining documents in the batch
+    print("\n[5/5] Processing final batch...")
+    if batch_documents:
+        print(f"  Generating embeddings for {len(batch_documents)} remaining chunks...")
+        embeddings = embedding_model.encode(batch_documents, show_progress_bar=False).tolist()
+        
+        collection.add(
+            documents=batch_documents,
+            embeddings=embeddings,
+            metadatas=batch_metadatas,
+            ids=batch_ids
+        )
+        print(f"  [OK] Indexed final {len(batch_documents)} chunks to ChromaDB")
+    
     # Final statistics
     print("\n" + "="*70)
-    print("REBUILD COMPLETE")
+    print("REBUILD COMPLETE - IMPROVED CHUNKING & EMBEDDINGS")
     print("="*70)
     print(f"\nDocument Type Distribution:")
     print(f"  Regulations:          {stats.get('regulation', 0):>3}")
@@ -190,6 +223,11 @@ def rebuild_sebi_chromadb():
     print(f"  Other:                {stats.get('other', 0):>3}")
     print(f"\nTotal Chunks: {stats['total_chunks']}")
     print(f"Errors: {stats['errors']}")
+    print(f"\nImprovements Applied:")
+    print(f"  [OK] Token-based chunking with {sebi_processor.chunk_overlap}-token overlap")
+    print(f"  [OK] Sentence boundary preservation")
+    print(f"  [OK] Explicit embedding generation using all-MiniLM-L12-v2")
+    print(f"  [OK] Batch processing for efficiency")
     print("="*70)
 
 if __name__ == "__main__":

@@ -17,6 +17,14 @@ from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.stem import WordNetLemmatizer
 
+# Import tiktoken for token counting
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+    logging.warning("tiktoken not available, using word-based approximation for chunking")
+
 # Download required NLTK data
 try:
     nltk.data.find('tokenizers/punkt')
@@ -56,16 +64,29 @@ class ProcessedChunk:
 class SEBIProcessor:
     """Processor for cleaning and chunking SEBI documents."""
     
-    def __init__(self, min_chunk_size: int = 200, max_chunk_size: int = 1000):
+    def __init__(self, min_chunk_size: int = 200, max_chunk_size: int = 1000, chunk_overlap: int = 100):
         """
         Initialize SEBI processor.
         
         Args:
-            min_chunk_size: Minimum size for document chunks
-            max_chunk_size: Maximum size for document chunks
+            min_chunk_size: Minimum size for document chunks (in tokens)
+            max_chunk_size: Maximum size for document chunks (in tokens)
+            chunk_overlap: Number of tokens to overlap between chunks
         """
         self.min_chunk_size = min_chunk_size
         self.max_chunk_size = max_chunk_size
+        self.chunk_overlap = chunk_overlap
+        
+        # Initialize tiktoken encoder for token counting
+        if TIKTOKEN_AVAILABLE:
+            try:
+                self.tokenizer = tiktoken.get_encoding("cl100k_base")  # GPT-4 tokenizer
+                logger.info("Using tiktoken for token-based chunking")
+            except Exception as e:
+                logger.warning(f"Failed to initialize tiktoken: {e}. Using word approximation.")
+                self.tokenizer = None
+        else:
+            self.tokenizer = None
         
         # Initialize text processing tools
         self.lemmatizer = WordNetLemmatizer()
@@ -316,36 +337,97 @@ class SEBIProcessor:
         
         return penalty_info
     
+    def _count_tokens(self, text: str) -> int:
+        """
+        Count tokens in text using tiktoken or word approximation.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Number of tokens
+        """
+        if self.tokenizer:
+            try:
+                return len(self.tokenizer.encode(text))
+            except Exception as e:
+                logger.warning(f"Token counting error: {e}. Using word approximation.")
+                # Fallthrough to word approximation
+        
+        # Approximate: ~1.3 tokens per word on average
+        return int(len(text.split()) * 1.3)
+    
     def _create_semantic_chunks(self, content: str, doc_id: str, document: Dict[str, Any], metadata: Dict[str, Any]) -> List[ProcessedChunk]:
-        """Create semantic chunks from document content."""
+        """
+        Create semantic chunks from document content using token-based chunking with overlap.
+        Respects sentence boundaries for better context preservation.
+        """
         chunks = []
         
-        # Split content into paragraphs
-        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        # Split content into sentences
+        sentences = sent_tokenize(content)
         
-        current_chunk = ""
+        if not sentences:
+            return chunks
+        
+        current_chunk_sentences = []
+        current_chunk_tokens = 0
         chunk_index = 0
         
-        for paragraph in paragraphs:
-            # If adding this paragraph would exceed max size, create a chunk
-            if len(current_chunk) + len(paragraph) > self.max_chunk_size and current_chunk:
-                if len(current_chunk) >= self.min_chunk_size:
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            sentence_tokens = self._count_tokens(sentence)
+            
+            # If adding this sentence would exceed max size
+            if current_chunk_tokens + sentence_tokens > self.max_chunk_size and current_chunk_sentences:
+                # Create chunk from accumulated sentences
+                chunk_text = ' '.join(current_chunk_sentences)
+                
+                if current_chunk_tokens >= self.min_chunk_size:
                     chunk = self._create_chunk(
-                        current_chunk, doc_id, document, metadata, chunk_index
+                        chunk_text, doc_id, document, metadata, chunk_index
                     )
                     chunks.append(chunk)
                     chunk_index += 1
-                current_chunk = paragraph
+                    
+                    # Calculate overlap: keep last N sentences for context
+                    overlap_sentences = []
+                    overlap_tokens = 0
+                    
+                    # Work backwards from the end to build overlap
+                    for sent in reversed(current_chunk_sentences):
+                        sent_tokens = self._count_tokens(sent)
+                        if overlap_tokens + sent_tokens <= self.chunk_overlap:
+                            overlap_sentences.insert(0, sent)
+                            overlap_tokens += sent_tokens
+                        else:
+                            break
+                    
+                    # Start new chunk with overlap
+                    current_chunk_sentences = overlap_sentences + [sentence]
+                    current_chunk_tokens = overlap_tokens + sentence_tokens
+                else:
+                    # Current chunk too small, just add sentence
+                    current_chunk_sentences.append(sentence)
+                    current_chunk_tokens += sentence_tokens
             else:
-                current_chunk += "\n\n" + paragraph if current_chunk else paragraph
+                # Add sentence to current chunk
+                current_chunk_sentences.append(sentence)
+                current_chunk_tokens += sentence_tokens
         
         # Add the last chunk
-        if current_chunk and len(current_chunk) >= self.min_chunk_size:
-            chunk = self._create_chunk(
-                current_chunk, doc_id, document, metadata, chunk_index
-            )
-            chunks.append(chunk)
+        if current_chunk_sentences:
+            chunk_text = ' '.join(current_chunk_sentences)
+            if current_chunk_tokens >= self.min_chunk_size:
+                chunk = self._create_chunk(
+                    chunk_text, doc_id, document, metadata, chunk_index
+                )
+                chunks.append(chunk)
         
+        logger.info(f"Created {len(chunks)} chunks from document {doc_id} (token-based with {self.chunk_overlap} token overlap)")
         return chunks
     
     def _create_chunk(self, content: str, doc_id: str, document: Dict[str, Any], metadata: Dict[str, Any], chunk_index: int) -> ProcessedChunk:
