@@ -65,6 +65,12 @@ huggingface_cache/
 *.pth
 *.onnx
 *.h5
+*.safetensors
+
+# Fine-tuned models (too large for Git)
+models/fin-e5/
+models/deployed/
+models/*.safetensors
 
 # Logs
 *.log
