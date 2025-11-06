@@ -40,14 +40,8 @@ try:
     from .device_config import get_device_string, device_manager, is_cuda_available
     from .config import settings
 except ImportError:
-<<<<<<< HEAD
-    from data.sebi_processor import ProcessedChunk
-    from device_config import get_device_string, device_manager, is_cuda_available
-    from config import settings
-=======
     from src.data.sebi_processor import ProcessedChunk
     from src.core.device_config import get_device_string, device_manager, is_cuda_available
->>>>>>> c6e44e4fed926d8df87327c46958b90f75d1cc6b
 
 logger = logging.getLogger(__name__)
 

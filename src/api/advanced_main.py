@@ -261,6 +261,15 @@ async def startup_event():
                 ollama_model=settings.ollama_model,
                 ollama_host=settings.ollama_host
             )
+            
+            # Log graph status
+            if unified_engine.amlsim_graph.graph:
+                amlsim_nodes = len(unified_engine.amlsim_graph.graph.nodes())
+                amlsim_edges = len(unified_engine.amlsim_graph.graph.edges())
+                logger.info(f"AMLSim graph status: {amlsim_nodes} nodes, {amlsim_edges} edges")
+            else:
+                logger.warning("AMLSim graph is empty - graph visualization will not work")
+            
             logger.info("Unified GraphRAG Engine initialized with cached patterns")
         except Exception as e:
             logger.warning(f"Unified engine initialization failed: {e}")
@@ -374,7 +383,7 @@ async def query_rag_engine(
             metadata={
                 "model_used": "ollama_llama" if rag_engine.use_ollama else "fallback",
                 "reranker_used": rag_engine.use_reranker,
-                "embedding_model": "all-MiniLM-L12-v2"
+                "embedding_model": settings.embedding_model
             }
         )
         
@@ -894,12 +903,43 @@ async def get_account_graph(
         if not unified_engine:
             raise HTTPException(status_code=500, detail="Unified GraphRAG engine not initialized")
         
+        # Check if AMLSim graph is loaded and has nodes
+        if not hasattr(unified_engine.amlsim_graph, 'graph'):
+            raise HTTPException(
+                status_code=503, 
+                detail="AMLSim graph manager not properly initialized"
+            )
+        
+        graph = unified_engine.amlsim_graph.graph
+        if not graph or len(graph.nodes()) == 0:
+            # Try to reload the graph
+            logger.warning("AMLSim graph appears empty, attempting to reload...")
+            reloaded = unified_engine.amlsim_graph.load_graph()
+            if not reloaded or len(unified_engine.amlsim_graph.graph.nodes()) == 0:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="AMLSim transaction graph is not loaded or is empty. Please build the graph first using: python build_amlsim_graph.py"
+                )
+            graph = unified_engine.amlsim_graph.graph
+        
         # Normalize account ID format
+        original_account_id = account_id
         if not account_id.startswith('account_'):
             account_id = f'account_{account_id}'
         
+        # Check if account exists in graph
+        if account_id not in unified_engine.amlsim_graph.graph:
+            # Try to find similar accounts for helpful error message
+            all_accounts = list(unified_engine.amlsim_graph.find_nodes_by_type('Account'))
+            account_numbers = [acc.replace('account_', '') for acc in all_accounts[:10]]  # First 10 for reference
+            
+            error_msg = f"Account {original_account_id} not found in the transaction graph."
+            if account_numbers:
+                error_msg += f" Available accounts (sample): {', '.join(account_numbers)}"
+            raise HTTPException(status_code=404, detail=error_msg)
+        
         # Extract ego network from AMLSim graph
-        graph_data = unified_engine.amlsim_manager.get_ego_network(
+        graph_data = unified_engine.amlsim_graph.get_ego_network(
             account_id=account_id,
             max_hops=hops,
             max_nodes=max_nodes
@@ -907,6 +947,13 @@ async def get_account_graph(
         
         if 'error' in graph_data:
             raise HTTPException(status_code=404, detail=graph_data['error'])
+        
+        # Check if we got any nodes
+        if graph_data.get('stats', {}).get('total_nodes', 0) == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Account {original_account_id} exists but has no connections within {hops} hop(s). Try increasing the number of hops."
+            )
         
         logger.info(f"Graph extracted for {account_id}: {graph_data['stats']['total_nodes']} nodes, {graph_data['stats']['total_edges']} edges")
         
@@ -922,6 +969,68 @@ async def get_account_graph(
     except Exception as e:
         logger.error(f"Graph extraction error for {account_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Graph extraction failed: {str(e)}")
+
+
+@app.get("/graph/status")
+async def get_graph_status(api_key: str = Depends(get_api_key)):
+    """
+    Get graph status and diagnostics.
+    Useful for debugging graph loading issues.
+    """
+    try:
+        status = {
+            "unified_engine_initialized": unified_engine is not None,
+            "amlsim_graph": {},
+            "sebi_graph": {}
+        }
+        
+        if unified_engine:
+            # Check AMLSim graph
+            amlsim_status = {
+                "manager_exists": hasattr(unified_engine, 'amlsim_graph'),
+                "graph_loaded": False,
+                "node_count": 0,
+                "edge_count": 0,
+                "sample_accounts": []
+            }
+            
+            if hasattr(unified_engine, 'amlsim_graph'):
+                if hasattr(unified_engine.amlsim_graph, 'graph'):
+                    graph = unified_engine.amlsim_graph.graph
+                    if graph:
+                        amlsim_status["graph_loaded"] = True
+                        amlsim_status["node_count"] = len(graph.nodes())
+                        amlsim_status["edge_count"] = len(graph.edges())
+                        
+                        # Get sample account IDs
+                        account_nodes = unified_engine.amlsim_graph.find_nodes_by_type('Account')
+                        amlsim_status["sample_accounts"] = [
+                            acc.replace('account_', '') for acc in list(account_nodes)[:20]
+                        ]
+            
+            status["amlsim_graph"] = amlsim_status
+            
+            # Check SEBI graph
+            sebi_status = {
+                "manager_exists": hasattr(unified_engine, 'sebi_graph'),
+                "graph_loaded": False,
+                "node_count": 0
+            }
+            
+            if hasattr(unified_engine, 'sebi_graph'):
+                if hasattr(unified_engine.sebi_graph, 'graph'):
+                    graph = unified_engine.sebi_graph.graph
+                    if graph:
+                        sebi_status["graph_loaded"] = True
+                        sebi_status["node_count"] = len(graph.nodes())
+            
+            status["sebi_graph"] = sebi_status
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Graph status check error: {e}")
+        raise HTTPException(status_code=500, detail=f"Graph status check failed: {str(e)}")
 
 
 @app.get("/stats")

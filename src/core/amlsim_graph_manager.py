@@ -537,8 +537,10 @@ class AMLSimGraphManager(GraphManager):
         edges = []
         edge_id = 0
         for source, target, edge_data in subgraph.edges(data=True):
+            # Check relationship (edges use 'relationship' key, not 'relationship_type')
+            relationship = edge_data.get('relationship', '')
             # Only include SENT_TO relationships (skip RECEIVED_FROM to avoid duplicates)
-            if edge_data.get('relationship_type') == 'SENT_TO':
+            if relationship == 'SENT_TO':
                 amount = edge_data.get('amount', 0)
                 
                 # Edge thickness based on transaction amount
@@ -550,7 +552,7 @@ class AMLSimGraphManager(GraphManager):
                     'target': target,
                     'label': f'${amount:,.0f}',
                     'width': width,
-                    'type': edge_data.get('relationship_type', 'SENT_TO'),
+                    'type': relationship,
                     'data': {
                         'amount': amount,
                         'transaction_type': edge_data.get('transaction_type', ''),
