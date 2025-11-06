@@ -8,7 +8,7 @@ print("=" * 70)
 
 try:
     print("\n[1/3] Loading Fin-E5 model...")
-    model = SentenceTransformer('models/deployed/fin-e5-v1')
+    model = SentenceTransformer('./models/fin-e5')
     print("[OK] Model loaded successfully")
     
     print("\n[2/3] Checking model properties...")

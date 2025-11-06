@@ -70,10 +70,10 @@ class ModelRegistry:
                 "phase": ModelPhase.PHASE_2,
                 "description": "Fine-tuned embedding model for financial domain",
                 "fine_tuned": True,
-                "model_path": "sentence-transformers/all-MiniLM-L12-v2",  # Base model
-                "fine_tuned_path": "./models/fin-e5-finetuned",
+                "model_path": "intfloat/e5-base-v2",  # Base model
+                "fine_tuned_path": "./models/fin-e5",
                 "max_tokens": 512,
-                "dimension": 384
+                "dimension": 768  # E5-base dimension
             }
         }
     

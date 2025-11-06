@@ -38,9 +38,11 @@ if not any([ANTHROPIC_AVAILABLE, OLLAMA_AVAILABLE]):
 try:
     from ..data.sebi_processor import ProcessedChunk
     from .device_config import get_device_string, device_manager, is_cuda_available
+    from .config import settings
 except ImportError:
     from data.sebi_processor import ProcessedChunk
     from device_config import get_device_string, device_manager, is_cuda_available
+    from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +95,11 @@ class AdvancedRAGEngine:
         # Log GPU info if available
         device_manager.log_device_info()
         
-        # Initialize embedding model with GPU support (upgrade to Fin-E5 when available)
-        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=self.device)
+        # Initialize embedding model with GPU support (using Fin-E5 fine-tuned model)
+        embedding_model_path = settings.embedding_model
+        logger.info(f"Loading embedding model: {embedding_model_path}")
+        self.embedding_model = SentenceTransformer(embedding_model_path, device=self.device)
+        logger.info(f"Embedding model loaded: {self.embedding_model.get_sentence_embedding_dimension()} dimensions")
         
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
