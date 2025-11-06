@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     
     # Model Configuration
     embedding_model: str = Field(
-        default="sentence-transformers/all-MiniLM-L12-v2",
+        default="models/fin-e5",  # Fine-tuned E5 (768-dim, domain-specialized)
         env="EMBEDDING_MODEL"
     )
     llm_model: str = Field(default="llama3", env="LLM_MODEL")

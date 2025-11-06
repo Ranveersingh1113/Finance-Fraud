@@ -39,8 +39,8 @@ try:
     from ..data.sebi_processor import ProcessedChunk
     from .device_config import get_device_string, device_manager, is_cuda_available
 except ImportError:
-    from data.sebi_processor import ProcessedChunk
-    from device_config import get_device_string, device_manager, is_cuda_available
+    from src.data.sebi_processor import ProcessedChunk
+    from src.core.device_config import get_device_string, device_manager, is_cuda_available
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +93,10 @@ class AdvancedRAGEngine:
         # Log GPU info if available
         device_manager.log_device_info()
         
-        # Initialize embedding model with GPU support (upgrade to Fin-E5 when available)
-        self.embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=self.device)
+        # Initialize fine-tuned Fin-E5 embedding model with GPU support
+        logger.info("Loading fine-tuned Fin-E5 model (768 dimensions, domain-specialized)")
+        self.embedding_model = SentenceTransformer('models/fin-e5', device=self.device)
+        logger.info("✓ Fine-tuned E5 model loaded successfully")
         
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
