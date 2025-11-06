@@ -52,11 +52,12 @@ def rebuild_sebi_chromadb():
     sebi_processor = SEBIProcessor()
     file_processor = SEBIFileProcessor()
     
-    # Initialize embedding model (same as used in RAG engine)
+    # Initialize fine-tuned embedding model (same as used in RAG engine)
     device = get_device_string()
     print(f"  Using device: {device}")
-    embedding_model = SentenceTransformer('all-MiniLM-L12-v2', device=device)
-    print(f"  Loaded embedding model: all-MiniLM-L12-v2")
+    embedding_model = SentenceTransformer('models/fin-e5', device=device)
+    print(f"  Loaded fine-tuned embedding model: Fin-E5 (768 dimensions)")
+    print(f"  Model trained on SEBI/AMLSim domain data")
     print("[OK] Processors and embedding model initialized")
     
     # Step 4: Process ALL SEBI documents

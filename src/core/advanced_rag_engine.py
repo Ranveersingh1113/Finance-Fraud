@@ -40,9 +40,14 @@ try:
     from .device_config import get_device_string, device_manager, is_cuda_available
     from .config import settings
 except ImportError:
+<<<<<<< HEAD
     from data.sebi_processor import ProcessedChunk
     from device_config import get_device_string, device_manager, is_cuda_available
     from config import settings
+=======
+    from src.data.sebi_processor import ProcessedChunk
+    from src.core.device_config import get_device_string, device_manager, is_cuda_available
+>>>>>>> c6e44e4fed926d8df87327c46958b90f75d1cc6b
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +103,9 @@ class AdvancedRAGEngine:
         # Initialize embedding model with GPU support (using Fin-E5 fine-tuned model)
         embedding_model_path = settings.embedding_model
         logger.info(f"Loading embedding model: {embedding_model_path}")
+        logger.info("Fine-tuned Fin-E5 model (768 dimensions, domain-specialized)")
         self.embedding_model = SentenceTransformer(embedding_model_path, device=self.device)
-        logger.info(f"Embedding model loaded: {self.embedding_model.get_sentence_embedding_dimension()} dimensions")
+        logger.info(f"✓ Embedding model loaded: {self.embedding_model.get_sentence_embedding_dimension()} dimensions")
         
         # Initialize ChromaDB
         self.chroma_client = chromadb.PersistentClient(
