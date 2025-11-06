@@ -112,3 +112,4 @@ htmlcov/
 .safetensors
 models/fin-e5/
 models/deployed/
+.zip
