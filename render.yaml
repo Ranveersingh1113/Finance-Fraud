@@ -1,0 +1,36 @@
+services:
+  # Backend API
+  - type: web
+    name: finance-fraud-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api.advanced_main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        sync: false
+      - key: DEVICE
+        value: cpu
+      - key: USE_FP16
+        value: "False"
+      - key: OLLAMA_HOST
+        value: http://ollama:11434
+      - key: OLLAMA_MODEL
+        value: llama3.1:8b
+
+  # Frontend (Static Site)
+  - type: web
+    name: finance-fraud-frontend
+    env: static
+    buildCommand: cd prd-pathfinder-69 && npm install && npm run build
+    staticPublishPath: prd-pathfinder-69/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: finance-fraud-api
+          type: web
+          property: host
+

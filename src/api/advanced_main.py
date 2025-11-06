@@ -251,6 +251,26 @@ async def startup_event():
             else:
                 logger.warning("No SEBI data found. Please run the data pipeline first.")
         
+        # Check FIU collection
+        try:
+            fiu_count = rag_engine.fiu_collection.count()
+            if fiu_count > 0:
+                logger.info(f"✓ FIU collection initialized: {fiu_count} documents")
+            else:
+                logger.warning(f"⚠ FIU collection exists but is empty ({fiu_count} documents). Index FIU data to use it.")
+        except Exception as e:
+            logger.warning(f"FIU collection check failed: {e}")
+        
+        # Check Income Tax collection
+        try:
+            incometax_count = rag_engine.incometax_collection.count()
+            if incometax_count > 0:
+                logger.info(f"✓ Income Tax collection initialized: {incometax_count} documents")
+            else:
+                logger.warning(f"⚠ Income Tax collection exists but is empty ({incometax_count} documents). Index Income Tax data to use it.")
+        except Exception as e:
+            logger.warning(f"Income Tax collection check failed: {e}")
+        
         # Initialize Unified GraphRAG Engine (once on startup for performance!)
         logger.info("Initializing Unified GraphRAG Engine...")
         try:
@@ -1056,6 +1076,56 @@ async def get_system_stats():
     except Exception as e:
         logger.error(f"Stats error: {e}")
         raise HTTPException(status_code=500, detail=f"Stats retrieval failed: {str(e)}")
+
+
+class UserProfileResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    avatar_url: Optional[str] = None
+    department: Optional[str] = None
+    joined_date: Optional[str] = None
+
+
+@app.get("/user/profile", response_model=UserProfileResponse)
+async def get_user_profile(api_key: str = Depends(get_api_key)):
+    """
+    Get current user profile information.
+    
+    For now, returns a default user profile. In production, this would:
+    - Extract user info from JWT token or session
+    - Query user database
+    - Return actual user data
+    
+    Requires API key authentication.
+    """
+    try:
+        # TODO: In production, extract user ID from JWT token or session
+        # For now, return a default profile that can be customized
+        # You can also check the API key to determine which user to return
+        
+        # Default user profile - can be customized based on API key or session
+        default_profile = {
+            "id": "user_001",
+            "name": "Sarah Johnson",
+            "email": "sarah.johnson@company.com",
+            "role": "Senior Fraud Analyst",
+            "avatar_url": None,
+            "department": "Financial Intelligence Unit",
+            "joined_date": "2023-01-15"
+        }
+        
+        # In production, you would do something like:
+        # user_id = get_user_id_from_token(api_key)
+        # user = user_db.get_user(user_id)
+        # return UserProfileResponse(**user)
+        
+        return UserProfileResponse(**default_profile)
+        
+    except Exception as e:
+        logger.error(f"User profile error: {e}")
+        raise HTTPException(status_code=500, detail=f"User profile retrieval failed: {str(e)}")
 
 
 async def log_case_creation(case_id: str, description: str):

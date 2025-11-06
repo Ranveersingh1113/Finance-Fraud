@@ -89,6 +89,14 @@ class Settings(BaseSettings):
         default="./data/sebi", 
         env="SEBI_DATA_PATH"
     )
+    fiu_data_path: str = Field(
+        default="./data/fiu", 
+        env="FIU_DATA_PATH"
+    )
+    incometax_data_path: str = Field(
+        default="./data/incometax", 
+        env="INCOMETAX_DATA_PATH"
+    )
     
     # V-Feature Clustering Configuration
     v_feature_clusters: int = Field(default=5, env="V_FEATURE_CLUSTERS")
@@ -135,6 +143,8 @@ class Settings(BaseSettings):
         Path(self.chroma_persist_directory).mkdir(parents=True, exist_ok=True)
         Path(self.ieee_cis_data_path).mkdir(parents=True, exist_ok=True)
         Path(self.sebi_data_path).mkdir(parents=True, exist_ok=True)
+        Path(self.fiu_data_path).mkdir(parents=True, exist_ok=True)
+        Path(self.incometax_data_path).mkdir(parents=True, exist_ok=True)
         Path(self.graphs_directory).mkdir(parents=True, exist_ok=True)
         # Ensure cases db directory exists
         Path(self.cases_db_path).parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,41 @@
+# fly.toml for Financial Fraud Detection Platform
+app = "finance-fraud-api"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "8001"
+  ENVIRONMENT = "production"
+  DEVICE = "cpu"
+  USE_FP16 = "False"
+
+[[services]]
+  internal_port = 8001
+  protocol = "tcp"
+  processes = ["app"]
+
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+    force_https = true
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.http_checks]]
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s"
+    method = "GET"
+    path = "/health"
+
+[experimental]
+  auto_rollback = true
+

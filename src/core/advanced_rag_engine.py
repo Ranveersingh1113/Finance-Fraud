@@ -55,6 +55,7 @@ class QueryResult:
     rerank_score: Optional[float] = None
     final_score: Optional[float] = None
     source: str = "unknown"
+    query_type: Optional[str] = None
 
 
 @dataclass
@@ -116,6 +117,16 @@ class AdvancedRAGEngine:
         self.sebi_collection = self.chroma_client.get_or_create_collection(
             name="sebi_documents_advanced",
             metadata={"description": "SEBI documents with advanced features"}
+        )
+        
+        self.fiu_collection = self.chroma_client.get_or_create_collection(
+            name="fiu_documents_advanced",
+            metadata={"description": "FIU documents with advanced features"}
+        )
+        
+        self.incometax_collection = self.chroma_client.get_or_create_collection(
+            name="incometax_documents_advanced",
+            metadata={"description": "Income Tax documents with advanced features"}
         )
         
         # Initialize advanced models
@@ -279,9 +290,11 @@ class AdvancedRAGEngine:
             # Stage 2: Initial retrieval from all query variations
             all_results = []
             for query_type, optimized_query in optimized_queries.items():
-                # Search both collections
+                # Search all collections
                 transaction_results = self._search_transactions_advanced(optimized_query, n_results * 2)
                 sebi_results = self._search_sebi_documents_advanced(optimized_query, n_results * 2)
+                fiu_results = self._search_fiu_documents_advanced(optimized_query, n_results * 2)
+                incometax_results = self._search_incometax_documents_advanced(optimized_query, n_results * 2)
                 
                 # Add query type to results
                 for result in transaction_results:
@@ -290,8 +303,14 @@ class AdvancedRAGEngine:
                 for result in sebi_results:
                     result.source = "sebi_documents"
                     result.query_type = query_type
+                for result in fiu_results:
+                    result.source = "fiu_documents"
+                    result.query_type = query_type
+                for result in incometax_results:
+                    result.source = "incometax_documents"
+                    result.query_type = query_type
                 
-                all_results.extend(transaction_results + sebi_results)
+                all_results.extend(transaction_results + sebi_results + fiu_results + incometax_results)
             
             # Stage 3: Deduplicate results
             unique_results = self._deduplicate_results(all_results)
@@ -353,13 +372,66 @@ class AdvancedRAGEngine:
                 query_results.append(QueryResult(
                     document=results['documents'][0][i],
                     metadata=results['metadatas'][0][i],
-                    similarity_score=1 - results['distances'][0][i]
+                    similarity_score=1 - results['distances'][0][i],
+                    source="sebi"
                 ))
             
             return query_results
             
         except Exception as e:
             logger.error(f"Error searching SEBI documents: {e}")
+            return []
+    
+    def _search_fiu_documents_advanced(self, query: str, n_results: int) -> List[QueryResult]:
+        """Advanced FIU document search with filtering and enhanced metadata."""
+        try:
+            query_embedding = self.embedding_model.encode([query]).tolist()[0]
+            
+            results = self.fiu_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results,
+                include=['documents', 'metadatas', 'distances']
+            )
+            
+            query_results = []
+            for i in range(len(results['documents'][0])):
+                query_results.append(QueryResult(
+                    document=results['documents'][0][i],
+                    metadata=results['metadatas'][0][i],
+                    similarity_score=1 - results['distances'][0][i],
+                    source="fiu"
+                ))
+            
+            return query_results
+            
+        except Exception as e:
+            logger.error(f"Error searching FIU documents: {e}")
+            return []
+    
+    def _search_incometax_documents_advanced(self, query: str, n_results: int) -> List[QueryResult]:
+        """Advanced Income Tax document search with filtering and enhanced metadata."""
+        try:
+            query_embedding = self.embedding_model.encode([query]).tolist()[0]
+            
+            results = self.incometax_collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results,
+                include=['documents', 'metadatas', 'distances']
+            )
+            
+            query_results = []
+            for i in range(len(results['documents'][0])):
+                query_results.append(QueryResult(
+                    document=results['documents'][0][i],
+                    metadata=results['metadatas'][0][i],
+                    similarity_score=1 - results['distances'][0][i],
+                    source="incometax"
+                ))
+            
+            return query_results
+            
+        except Exception as e:
+            logger.error(f"Error searching Income Tax documents: {e}")
             return []
     
     def _deduplicate_results(self, results: List[QueryResult]) -> List[QueryResult]:

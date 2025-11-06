@@ -1010,31 +1010,79 @@ class UnifiedGraphRAGEngine:
                 stats = self.amlsim_stats_cache.get_stats()
                 context['amlsim_context'] = stats.copy()
                 
-                # Use CACHED patterns (no re-computation!)
+                # SYSTEMATIC APPROACH: Classify query intent and load relevant patterns
+                # Instead of many specific if/elif conditions, use a unified classification system
                 query_lower = query.lower()
-                if any(word in query_lower for word in ['fan-out', 'fan out', 'fanning out', 'placement']):
-                    # Use cached fan-out patterns (instant!)
-                    if self._pattern_cache['fan_out']:
-                        context['amlsim_context']['fan_out_patterns'] = \
-                            self._pattern_cache['fan_out'][:RAGConfig.MAX_PATTERNS_DISPLAY]
-                        logger.info(f"Retrieved {len(context['amlsim_context']['fan_out_patterns'])} "
-                                  f"cached fan-out patterns")
                 
-                if any(word in query_lower for word in ['fan-in', 'fan in', 'collection', 'consolidation']):
-                    # Use cached fan-in patterns (instant!)
-                    if self._pattern_cache['fan_in']:
-                        context['amlsim_context']['fan_in_patterns'] = \
-                            self._pattern_cache['fan_in'][:RAGConfig.MAX_PATTERNS_DISPLAY]
-                        logger.info(f"Retrieved {len(context['amlsim_context']['fan_in_patterns'])} "
-                                  f"cached fan-in patterns")
+                # Step 1: Determine if query is asking for accounts/entities
+                is_account_query = any(term in query_lower for term in [
+                    'account', 'accounts', 'entity', 'entities', 'which', 'what', 'show', 
+                    'find', 'list', 'identify', 'who', 'whose'
+                ])
                 
-                if any(word in query_lower for word in ['fraud ring', 'money laundering network', 'suspicious network']):
-                    # Use cached fraud rings (instant!)
-                    if self._pattern_cache['fraud_rings']:
-                        context['amlsim_context']['fraud_rings'] = \
-                            self._pattern_cache['fraud_rings'][:RAGConfig.MAX_PATTERNS_DISPLAY]
-                        logger.info(f"Retrieved {len(context['amlsim_context']['fraud_rings'])} "
-                                  f"cached fraud rings")
+                # Step 2: Determine query intent (transaction analysis vs regulatory vs pattern detection)
+                is_transaction_query = any(term in query_lower for term in [
+                    'transaction', 'transfer', 'payment', 'outgoing', 'incoming', 'sent', 
+                    'received', 'disbursement', 'collection', 'more than', 'greater than',
+                    'at least', 'minimum', 'maximum', 'count', 'number of'
+                ])
+                
+                is_pattern_query = any(term in query_lower for term in [
+                    'pattern', 'suspicious', 'fraud', 'anomaly', 'unusual', 'fan-out', 
+                    'fan-out', 'fan in', 'fan-in', 'ring', 'network', 'structure'
+                ])
+                
+                is_regulatory_query = any(term in query_lower for term in [
+                    'regulation', 'regulatory', 'sebi', 'pmla', 'compliance', 'violation',
+                    'rule', 'law', 'guideline', 'requirement', 'obligation'
+                ])
+                
+                # Step 3: Load patterns based on query intent (universal approach)
+                # KEY INSIGHT: If query asks for accounts (even in regulatory context), load patterns
+                # The LLM will decide which patterns are relevant to the regulatory question
+                if is_account_query:
+                    # For account queries, always load relevant patterns (let LLM filter by query intent)
+                    # This handles both "Find accounts with X transactions" and "Find accounts per SEBI regulations"
+                    
+                    # Load fan-out patterns if query mentions outgoing OR is asking for accounts (regulatory or not)
+                    if any(term in query_lower for term in ['outgoing', 'sent', 'sending', 'disbursement', 
+                                                           'fan-out', 'fan out', 'placement']) or (is_transaction_query and not any(term in query_lower for term in ['incoming', 'received', 'receiving'])):
+                        if self._pattern_cache['fan_out']:
+                            context['amlsim_context']['fan_out_patterns'] = \
+                                self._pattern_cache['fan_out'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                            logger.info(f"Loaded {len(context['amlsim_context']['fan_out_patterns'])} fan-out patterns")
+                    
+                    # Load fan-in patterns if query mentions incoming OR is asking for accounts receiving money
+                    if any(term in query_lower for term in ['incoming', 'received', 'receiving', 'collection',
+                                                           'fan-in', 'fan in', 'consolidation', 'multiple sources', 'sources']):
+                        if self._pattern_cache['fan_in']:
+                            context['amlsim_context']['fan_in_patterns'] = \
+                                self._pattern_cache['fan_in'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                            logger.info(f"Loaded {len(context['amlsim_context']['fan_in_patterns'])} fan-in patterns")
+                    
+                    # Load fraud rings if query mentions patterns, violations, risk, or suspicious activity
+                    if is_pattern_query or any(term in query_lower for term in ['ring', 'network', 'group', 
+                                                                              'violation', 'fraud', 'risk', 'suspicious', 
+                                                                              'pattern', 'match']):
+                        if self._pattern_cache['fraud_rings']:
+                            context['amlsim_context']['fraud_rings'] = \
+                                self._pattern_cache['fraud_rings'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                            logger.info(f"Loaded {len(context['amlsim_context']['fraud_rings'])} fraud rings")
+                    
+                    # For regulatory queries asking for accounts (e.g., "Find accounts per SEBI"), 
+                    # load all pattern types so LLM can identify which accounts need EDD
+                    if is_regulatory_query and any(term in query_lower for term in ['find', 'which', 'what', 'identify', 'need', 'require']):
+                        # Load all patterns for comprehensive analysis
+                        if not context['amlsim_context'].get('fan_out_patterns') and self._pattern_cache['fan_out']:
+                            context['amlsim_context']['fan_out_patterns'] = \
+                                self._pattern_cache['fan_out'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                        if not context['amlsim_context'].get('fan_in_patterns') and self._pattern_cache['fan_in']:
+                            context['amlsim_context']['fan_in_patterns'] = \
+                                self._pattern_cache['fan_in'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                        if not context['amlsim_context'].get('fraud_rings') and self._pattern_cache['fraud_rings']:
+                            context['amlsim_context']['fraud_rings'] = \
+                                self._pattern_cache['fraud_rings'][:RAGConfig.MAX_PATTERNS_DISPLAY]
+                        logger.info(f"Loaded all pattern types for regulatory account query")
                 
                 # Record success in circuit breaker
                 self.amlsim_circuit_breaker.record_success()
@@ -1087,34 +1135,45 @@ class UnifiedGraphRAGEngine:
     
     async def _dual_rag_retrieval_parallel(self, query: str, n_results: int) -> Dict[str, List]:
         """
-        IMPROVED: Parallel RAG retrieval from both collections for better throughput.
+        IMPROVED: Parallel RAG retrieval from all collections for better throughput.
+        Now includes SEBI, AMLSim, FIU, and Income Tax collections.
         
         Args:
             query: User query
             n_results: Number of results per collection
             
         Returns:
-            Results from both collections
+            Results from all collections (sebi, amlsim, fiu, incometax)
         """
         # Create tasks for parallel execution
         sebi_task = asyncio.create_task(self._query_sebi_collection(query, n_results))
         amlsim_task = asyncio.create_task(self._query_amlsim_collection(query, n_results))
+        fiu_task = asyncio.create_task(self._query_fiu_collection(query, n_results))
+        incometax_task = asyncio.create_task(self._query_incometax_collection(query, n_results))
         
-        # Wait for both to complete
-        results = await asyncio.gather(sebi_task, amlsim_task, return_exceptions=True)
+        # Wait for all to complete
+        results = await asyncio.gather(sebi_task, amlsim_task, fiu_task, incometax_task, return_exceptions=True)
         
         # Handle exceptions
         sebi_results = results[0] if not isinstance(results[0], Exception) else []
         amlsim_results = results[1] if not isinstance(results[1], Exception) else []
+        fiu_results = results[2] if not isinstance(results[2], Exception) else []
+        incometax_results = results[3] if not isinstance(results[3], Exception) else []
         
         if isinstance(results[0], Exception):
             logger.error(f"SEBI collection query failed: {results[0]}")
         if isinstance(results[1], Exception):
             logger.error(f"AMLSim collection query failed: {results[1]}")
+        if isinstance(results[2], Exception):
+            logger.error(f"FIU collection query failed: {results[2]}")
+        if isinstance(results[3], Exception):
+            logger.error(f"Income Tax collection query failed: {results[3]}")
         
         return {
             'sebi_results': sebi_results,
-            'amlsim_results': amlsim_results
+            'amlsim_results': amlsim_results,
+            'fiu_results': fiu_results,
+            'incometax_results': incometax_results
         }
     
     async def _query_sebi_collection(self, query: str, n_results: int) -> List[Dict]:
@@ -1211,6 +1270,104 @@ class UnifiedGraphRAGEngine:
             
         except Exception as e:
             logger.error(f"Error querying AMLSim collection: {e}")
+            return []
+    
+    async def _query_fiu_collection(self, query: str, n_results: int) -> List[Dict]:
+        """
+        Query FIU collection with enhancements.
+        OPTIMIZATION: Batch embedding generation for 2-3x speedup.
+        """
+        try:
+            if not hasattr(self.rag_engine, 'fiu_collection') or not self.rag_engine.fiu_collection:
+                return []
+            
+            query_type = self._classify_query_intent(query)
+            query_variations = self._expand_query(query, query_type)
+            
+            # OPTIMIZATION: Batch encode all query variations at once
+            all_embeddings = self.rag_engine.embedding_model.encode(
+                query_variations,
+                batch_size=len(query_variations),
+                show_progress_bar=False
+            ).tolist()
+            
+            all_results = []
+            for q_var, query_embedding in zip(query_variations, all_embeddings):
+                results = self.rag_engine.fiu_collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=n_results,
+                    include=['documents', 'metadatas', 'distances']
+                )
+                
+                if results['documents'] and results['documents'][0]:
+                    for i in range(len(results['documents'][0])):
+                        doc_id = results.get('ids', [[]])[0][i] if 'ids' in results else f"doc_{i}"
+                        
+                        if not any(r.get('id') == doc_id for r in all_results):
+                            all_results.append({
+                                'id': doc_id,
+                                'document': results['documents'][0][i],
+                                'metadata': results['metadatas'][0][i],
+                                'score': 1 - results['distances'][0][i],
+                                'source': 'fiu_documents',
+                                'query_variation': q_var
+                            })
+            
+            # Sort and return top results
+            all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return all_results[:n_results]
+            
+        except Exception as e:
+            logger.error(f"Error querying FIU collection: {e}")
+            return []
+    
+    async def _query_incometax_collection(self, query: str, n_results: int) -> List[Dict]:
+        """
+        Query Income Tax collection with enhancements.
+        OPTIMIZATION: Batch embedding generation for 2-3x speedup.
+        """
+        try:
+            if not hasattr(self.rag_engine, 'incometax_collection') or not self.rag_engine.incometax_collection:
+                return []
+            
+            query_type = self._classify_query_intent(query)
+            query_variations = self._expand_query(query, query_type)
+            
+            # OPTIMIZATION: Batch encode all query variations at once
+            all_embeddings = self.rag_engine.embedding_model.encode(
+                query_variations,
+                batch_size=len(query_variations),
+                show_progress_bar=False
+            ).tolist()
+            
+            all_results = []
+            for q_var, query_embedding in zip(query_variations, all_embeddings):
+                results = self.rag_engine.incometax_collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=n_results,
+                    include=['documents', 'metadatas', 'distances']
+                )
+                
+                if results['documents'] and results['documents'][0]:
+                    for i in range(len(results['documents'][0])):
+                        doc_id = results.get('ids', [[]])[0][i] if 'ids' in results else f"doc_{i}"
+                        
+                        if not any(r.get('id') == doc_id for r in all_results):
+                            all_results.append({
+                                'id': doc_id,
+                                'document': results['documents'][0][i],
+                                'metadata': results['metadatas'][0][i],
+                                'score': 1 - results['distances'][0][i],
+                                'source': 'incometax_documents',
+                                'query_variation': q_var
+                            })
+            
+            # Sort and return top results
+            all_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            return all_results[:n_results]
+            
+        except Exception as e:
+            logger.error(f"Error querying Income Tax collection: {e}")
             return []
     
     def _boost_by_document_type(self, results: List[Dict], query_type: str) -> List[Dict]:
@@ -1442,6 +1599,8 @@ class UnifiedGraphRAGEngine:
         # Part 2: Generate Enhanced LLM answer (document evidence shown separately in frontend)
         sebi_results = rag_results.get('sebi_results', [])
         amlsim_results = rag_results.get('amlsim_results', [])
+        fiu_results = rag_results.get('fiu_results', [])
+        incometax_results = rag_results.get('incometax_results', [])
         
         combined_evidence = []
         for result in sebi_results[:RAGConfig.MAX_EVIDENCE_RESULTS]:
@@ -1457,6 +1616,21 @@ class UnifiedGraphRAGEngine:
                 metadata=result['metadata'],
                 similarity_score=result['score'],
                 source='amlsim_transaction'
+            ))
+        # Add FIU and Income Tax results
+        for result in fiu_results[:RAGConfig.MAX_EVIDENCE_RESULTS]:
+            combined_evidence.append(QueryResult(
+                document=result['document'],
+                metadata=result['metadata'],
+                similarity_score=result['score'],
+                source='fiu_documents'
+            ))
+        for result in incometax_results[:RAGConfig.MAX_EVIDENCE_RESULTS]:
+            combined_evidence.append(QueryResult(
+                document=result['document'],
+                metadata=result['metadata'],
+                similarity_score=result['score'],
+                source='incometax_documents'
             ))
         
         # Try to get LLM answer with enhanced prompt
@@ -1493,6 +1667,8 @@ class UnifiedGraphRAGEngine:
         regulations = []
         cases = []
         transactions = []
+        fiu_docs = []
+        incometax_docs = []
         
         for result in evidence:
             doc_type = result.metadata.get('document_type', 'unknown')
@@ -1502,6 +1678,10 @@ class UnifiedGraphRAGEngine:
                 cases.append(result)
             elif result.source == 'amlsim_transaction':
                 transactions.append(result)
+            elif result.source == 'fiu_documents' or result.source == 'fiu':
+                fiu_docs.append(result)
+            elif result.source == 'incometax_documents' or result.source == 'incometax':
+                incometax_docs.append(result)
         
         # Build enhanced context
         context_parts = []
@@ -1536,6 +1716,24 @@ class UnifiedGraphRAGEngine:
                 key_sentences = self._extract_key_sentences(txn.document, max_sentences=2)
                 context_parts.append(f"{key_sentences}")
         
+        # Add FIU documents
+        if fiu_docs:
+            context_parts.append("\n\n=== FIU DOCUMENTS ===")
+            for i, fiu_doc in enumerate(fiu_docs[:3], 1):
+                title = fiu_doc.metadata.get('title', 'Untitled')[:100]
+                context_parts.append(f"\nFIU Document {i}: {title}")
+                key_sentences = self._extract_key_sentences(fiu_doc.document, max_sentences=2)
+                context_parts.append(f"{key_sentences}")
+        
+        # Add Income Tax documents
+        if incometax_docs:
+            context_parts.append("\n\n=== INCOME TAX DOCUMENTS ===")
+            for i, it_doc in enumerate(incometax_docs[:3], 1):
+                title = it_doc.metadata.get('title', 'Untitled')[:100]
+                context_parts.append(f"\nIncome Tax Document {i}: {title}")
+                key_sentences = self._extract_key_sentences(it_doc.document, max_sentences=2)
+                context_parts.append(f"{key_sentences}")
+        
         # Add graph intelligence
         graph_intel = []
         sebi_ctx = graph_context.get('sebi_context', {})
@@ -1549,37 +1747,67 @@ class UnifiedGraphRAGEngine:
             graph_intel.append(f"- Transaction Network: {amlsim_ctx.get('total_accounts', 0):,} accounts, "
                              f"{amlsim_ctx.get('suspicious_accounts', 0)} flagged as suspicious")
         
-        # Add specific pattern data for fan-out/fan-in queries
+        # SYSTEMATIC APPROACH: Format pattern data consistently for LLM
+        # Always format available pattern data the same way, regardless of query specifics
         query_lower = query.lower()
-        # Check if user wants "all" accounts
         wants_all = 'all' in query_lower or 'every' in query_lower or 'complete' in query_lower
-        max_patterns = 100 if wants_all else 20  # Show more if user asks for "all"
+        max_patterns = 100 if wants_all else 20
         
-        if 'fan-out' in query_lower or 'fan out' in query_lower or 'fanning out' in query_lower:
-            if 'fan_out_patterns' in amlsim_ctx and amlsim_ctx['fan_out_patterns']:
-                graph_intel.append(f"\n=== FAN-OUT PATTERNS DETECTED ({len(amlsim_ctx['fan_out_patterns'])} total) ===")
-                for i, pattern in enumerate(amlsim_ctx['fan_out_patterns'][:max_patterns], 1):
+        # Universal pattern formatting function
+        def format_patterns(pattern_type: str, patterns: List[Dict], title: str) -> List[str]:
+            """Format patterns consistently for LLM consumption."""
+            if not patterns:
+                return []
+            
+            formatted = [f"\n=== {title} ({len(patterns)} total) ==="]
+            for i, pattern in enumerate(patterns[:max_patterns], 1):
+                if pattern_type == 'fan_out':
                     account_id = pattern.get('source_account', 'Unknown').replace('account_', 'Account ')
-                    graph_intel.append(
-                        f"{i}. {account_id}: {pattern.get('num_destinations', 0)} destinations, "
+                    formatted.append(
+                        f"{i}. {account_id}: {pattern.get('num_destinations', 0)} outgoing transactions, "
                         f"${pattern.get('total_amount', 0):,.0f} total, "
                         f"Risk: {pattern.get('risk_level', 'MEDIUM')}"
                     )
-                if len(amlsim_ctx['fan_out_patterns']) > max_patterns:
-                    graph_intel.append(f"\n... and {len(amlsim_ctx['fan_out_patterns']) - max_patterns} more accounts with fan-out patterns")
-        
-        if 'fan-in' in query_lower or 'fan in' in query_lower:
-            if 'fan_in_patterns' in amlsim_ctx and amlsim_ctx['fan_in_patterns']:
-                graph_intel.append(f"\n=== FAN-IN PATTERNS DETECTED ({len(amlsim_ctx['fan_in_patterns'])} total) ===")
-                for i, pattern in enumerate(amlsim_ctx['fan_in_patterns'][:max_patterns], 1):
+                elif pattern_type == 'fan_in':
                     account_id = pattern.get('destination_account', 'Unknown').replace('account_', 'Account ')
-                    graph_intel.append(
-                        f"{i}. {account_id}: {pattern.get('num_sources', 0)} sources, "
+                    formatted.append(
+                        f"{i}. {account_id}: {pattern.get('num_sources', 0)} incoming transactions, "
                         f"${pattern.get('total_amount', 0):,.0f} total, "
                         f"Risk: {pattern.get('risk_level', 'MEDIUM')}"
                     )
-                if len(amlsim_ctx['fan_in_patterns']) > max_patterns:
-                    graph_intel.append(f"\n... and {len(amlsim_ctx['fan_in_patterns']) - max_patterns} more accounts with fan-in patterns")
+                elif pattern_type == 'fraud_rings':
+                    accounts_in_ring = pattern.get('accounts', [])
+                    account_ids = ', '.join([acc.replace('account_', 'Account ') for acc in accounts_in_ring[:5]])
+                    formatted.append(f"{i}. Fraud Ring: {account_ids}" + 
+                                   (f" (+{len(accounts_in_ring)-5} more)" if len(accounts_in_ring) > 5 else ""))
+            
+            if len(patterns) > max_patterns:
+                formatted.append(f"\n... and {len(patterns) - max_patterns} more patterns")
+            
+            return formatted
+        
+        # Format all available patterns (let LLM decide relevance based on query)
+        if 'fan_out_patterns' in amlsim_ctx and amlsim_ctx['fan_out_patterns']:
+            graph_intel.extend(format_patterns('fan_out', amlsim_ctx['fan_out_patterns'], 
+                                              "ACCOUNTS WITH OUTGOING TRANSACTIONS"))
+        
+        if 'fan_in_patterns' in amlsim_ctx and amlsim_ctx['fan_in_patterns']:
+            graph_intel.extend(format_patterns('fan_in', amlsim_ctx['fan_in_patterns'],
+                                              "ACCOUNTS WITH INCOMING TRANSACTIONS"))
+        
+        if 'fraud_rings' in amlsim_ctx and amlsim_ctx['fraud_rings']:
+            graph_intel.extend(format_patterns('fraud_rings', amlsim_ctx['fraud_rings'],
+                                              "FRAUD RINGS DETECTED"))
+        
+        # Add explicit instruction if pattern data exists and query asks for accounts
+        query_lower_check = query.lower()
+        asks_for_accounts_check = any(term in query_lower_check for term in [
+            'account', 'accounts', 'which', 'what', 'find', 'identify', 'list'
+        ])
+        if asks_for_accounts_check and any(key in amlsim_ctx for key in ['fan_out_patterns', 'fan_in_patterns', 'fraud_rings']):
+            graph_intel.append("\n⚠️ CRITICAL: The pattern data above contains specific account IDs. "
+                             "You MUST extract and list these account IDs in your answer. "
+                             "Do NOT say 'I do not have specific account IDs' when this data is provided.")
         
         # Build the enhanced prompt
         if self.rag_engine.use_claude:
@@ -1602,20 +1830,51 @@ CROSS-DOMAIN PATTERNS:
 
 USER QUESTION: {query}
 
-INSTRUCTIONS:
-1. Answer the question DIRECTLY and COMPREHENSIVELY - if asked for specific accounts/entities, LIST THEM
-2. For queries about patterns (fan-out, fan-in, etc.), provide the specific account IDs from the pattern data above
-3. PRIORITIZE regulatory texts for rule interpretation
-4. Use case precedents to show practical application  
-5. Cite specific document types (regulation/case/pattern)
-6. Be factual - only state what the evidence supports
-7. Structure your answer clearly:
-   - Start with a direct answer
-   - List specific accounts/entities if requested
-   - Provide context and analysis
-   - Reference regulatory framework when relevant
+CRITICAL INSTRUCTIONS:
+1. **MANDATORY ACCOUNT ID EXTRACTION**: 
+   - If the query asks for accounts/entities (e.g., "Find accounts", "Which accounts", "What accounts")
+   - AND pattern data is provided above (ACCOUNTS WITH OUTGOING TRANSACTIONS, ACCOUNTS WITH INCOMING TRANSACTIONS, FRAUD RINGS)
+   - YOU MUST extract and list the account IDs from that pattern data
+   - Example: If pattern shows "1. Account 325: 49 outgoing transactions", you MUST include "Account 325" in your answer
 
-IMPORTANT: If the question asks for specific accounts showing patterns, you MUST list them from the pattern data provided above. Do not say "I cannot identify" if the data is provided.
+2. **PATTERN DATA IS AUTHORITATIVE FOR ACCOUNT LISTS**:
+   - When pattern data exists, it contains the actual account IDs from the transaction network
+   - Regulatory text explains rules/requirements, but pattern data shows which accounts match those criteria
+   - For queries like "Find accounts that need EDD per SEBI" → Use pattern data to identify high-risk accounts
+   - For queries like "Which patterns match SEBI violations" → List account IDs from fraud rings/patterns
+
+3. **QUERY INTENT MATCHING**: 
+   - "Find accounts with X" → Extract account IDs from pattern data matching X
+   - "Which accounts match Y" → Extract account IDs from pattern data matching Y
+   - "What are the regulations" → Use regulatory text (no account IDs needed)
+   - "Which transaction patterns match violations" → List account IDs from fraud rings/patterns
+
+4. **ANSWER STRUCTURE FOR ACCOUNT QUERIES**:
+   - Start with: "Based on the pattern data, the following accounts: [Account 123, Account 456, ...]"
+   - Then provide: Regulatory context explaining why these accounts match
+   - Format: "**Specific Accounts:** Account 123, Account 456, Account 789"
+
+5. **DATA PRIORITY FOR ACCOUNT QUERIES**:
+   a) Pattern data (ACCOUNTS WITH OUTGOING/INCOMING TRANSACTIONS, FRAUD RINGS) - Contains actual account IDs
+   b) Regulatory text - Explains criteria/requirements
+   c) Cross-domain patterns - Shows which accounts match regulatory violations
+   d) Case precedents - Provides examples
+
+6. **NEVER SAY**:
+   - "I do not have specific account IDs" if pattern data with account IDs is provided above
+   - "I cannot identify" if pattern data exists
+   - "Based on the provided data, I do not have specific account IDs" if pattern data shows account IDs
+
+7. **EXAMPLES OF CORRECT RESPONSES**:
+   - ✅ "The following accounts match SEBI fraud violations: Account 123, Account 456 (from fraud rings data)"
+   - ✅ "Accounts requiring EDD per SEBI: Account 789, Account 101 (high-risk patterns detected)"
+   - ❌ "I do not have specific account IDs" (when pattern data exists)
+
+8. **DO NOT DUPLICATE CONTENT**:
+   - DO NOT create a "Regulatory Context" or "Regulatory Violations" section that repeats violations, actions, or compliance requirements
+   - DO NOT list "Required Actions" or "Compliance Checklist" in your answer
+   - These sections are already provided separately - your answer should focus on analysis and explanation
+   - If asked "What actions are required", provide analysis and context, but DO NOT create a duplicate actions/checklist section
 
 Provide your analysis:"""
         else:  # Ollama
@@ -1916,18 +2175,72 @@ Provide a clear, factual answer based on the evidence:
                 "SEBI AML Guidelines: Structuring to avoid reporting thresholds",
                 "PML Rules 2005: Client due diligence requirements"
             ]
-            typology['action_items'] = [
-                {"action": "File Suspicious Transaction Report (STR)", "deadline": "7 days", "priority": "CRITICAL"},
-                {"action": "Review KYC documentation for all destination accounts", "deadline": "48 hours", "priority": "HIGH"},
-                {"action": "Verify source of funds", "deadline": "72 hours", "priority": "HIGH"},
-                {"action": "Check for beneficial ownership connections", "deadline": "5 days", "priority": "MEDIUM"}
+            # Dynamic action items based on actual transaction data
+            total_sent = money_flow.get('total_sent', 0)
+            accounts_reached = money_flow.get('accounts_reached', 0)
+            
+            action_items = [
+                {"action": f"File Suspicious Transaction Report (STR) - {outgoing_count} transactions to {accounts_reached} accounts", 
+                 "deadline": "7 days", "priority": "CRITICAL"}
             ]
-            typology['compliance_requirements'] = [
-                "Enhanced Due Diligence (EDD) required per SEBI AML Guidelines Section 3.1",
-                "Transaction monitoring for 90 days post-investigation",
-                "Documentation of all transactions >₹10 lakh required",
-                "Customer interview and source of wealth verification"
+            
+            # Add specific actions based on transaction volume
+            if total_sent > 100000:
+                action_items.append({
+                    "action": f"High-value alert: ${total_sent:,.0f} disbursed - Enhanced KYC review required",
+                    "deadline": "48 hours", "priority": "HIGH"
+                })
+            
+            if accounts_reached > 20:
+                action_items.append({
+                    "action": f"Review KYC for {accounts_reached} destination accounts (structuring indicator)",
+                    "deadline": "48 hours", "priority": "HIGH"
+                })
+            else:
+                action_items.append({
+                    "action": f"Review KYC documentation for {accounts_reached} destination accounts",
+                    "deadline": "72 hours", "priority": "HIGH"
+                })
+            
+            if outgoing_count > 30:
+                action_items.append({
+                    "action": f"Verify source of funds - {outgoing_count} rapid transactions detected",
+                    "deadline": "48 hours", "priority": "HIGH"
+                })
+            else:
+                action_items.append({
+                    "action": "Verify source of funds",
+                    "deadline": "72 hours", "priority": "MEDIUM"
+                })
+            
+            action_items.append({
+                "action": "Check for beneficial ownership connections across transaction network",
+                "deadline": "5 days", "priority": "MEDIUM"
+            })
+            
+            typology['action_items'] = action_items
+            
+            # Dynamic compliance requirements based on pattern
+            compliance_requirements = [
+                "Enhanced Due Diligence (EDD) required per SEBI AML Guidelines Section 3.1"
             ]
+            
+            if total_sent > 100000:
+                compliance_requirements.append(f"Documentation of all transactions >₹10 lakh required (${total_sent:,.0f} total disbursed)")
+            else:
+                compliance_requirements.append("Documentation of all transactions >₹10 lakh required")
+            
+            if outgoing_count > 20:
+                compliance_requirements.append(f"Transaction monitoring for 90 days post-investigation ({outgoing_count} transactions flagged)")
+            else:
+                compliance_requirements.append("Transaction monitoring for 90 days post-investigation")
+            
+            if accounts_reached > 15:
+                compliance_requirements.append(f"Customer interview and source of wealth verification (multiple destinations: {accounts_reached} accounts)")
+            else:
+                compliance_requirements.append("Customer interview and source of wealth verification")
+            
+            typology['compliance_requirements'] = compliance_requirements
             typology['investigation_priority'] = 'CRITICAL' if outgoing_count > 30 else 'HIGH'
         
         # FAN-IN Pattern: Integration/Collection
@@ -1944,19 +2257,66 @@ Provide a clear, factual answer based on the evidence:
                 "SEBI (Prohibition of Fraudulent Practices): Possible layering scheme",
                 "PML Rules: Enhanced monitoring requirements"
             ]
-            typology['action_items'] = [
-                {"action": "File STR with detailed transaction mapping", "deadline": "7 days", "priority": "CRITICAL"},
-                {"action": "Trace source accounts for fraud indicators", "deadline": "48 hours", "priority": "HIGH"},
-                {"action": "Freeze account pending investigation", "deadline": "24 hours", "priority": "CRITICAL"},
-                {"action": "Coordinate with Financial Intelligence Unit (FIU)", "deadline": "72 hours", "priority": "HIGH"}
+            # Dynamic action items for fan-in patterns
+            total_received = money_flow.get('total_received', 0)
+            sources_count = money_flow.get('accounts_reached', 0)
+            
+            action_items = [
+                {"action": f"File STR - {incoming_count} incoming transactions from {sources_count} sources", 
+                 "deadline": "7 days", "priority": "CRITICAL"}
             ]
-            typology['compliance_requirements'] = [
-                "Immediate Enhanced Due Diligence (EDD)",
-                "Source of funds verification for all incoming transactions",
-                "Beneficial ownership identification for source accounts",
-                "Potential account freeze per PMLA Section 17"
+            
+            if sources_count > 10:
+                action_items.append({
+                    "action": f"Trace {sources_count} source accounts for fraud indicators (consolidation pattern)",
+                    "deadline": "48 hours", "priority": "HIGH"
+                })
+            else:
+                action_items.append({
+                    "action": "Trace source accounts for fraud indicators",
+                    "deadline": "72 hours", "priority": "HIGH"
+                })
+            
+            if total_received > 50000:
+                action_items.append({
+                    "action": f"Freeze account pending investigation - ${total_received:,.0f} received",
+                    "deadline": "24 hours", "priority": "CRITICAL"
+                })
+            else:
+                action_items.append({
+                    "action": "Review account activity - potential consolidation",
+                    "deadline": "48 hours", "priority": "HIGH"
+                })
+            
+            action_items.append({
+                "action": "Coordinate with Financial Intelligence Unit (FIU)",
+                "deadline": "72 hours", "priority": "HIGH"
+            })
+            
+            typology['action_items'] = action_items
+            
+            # Dynamic compliance requirements
+            compliance_requirements = [
+                "Immediate Enhanced Due Diligence (EDD)"
             ]
-            typology['investigation_priority'] = 'CRITICAL'
+            
+            if incoming_count > 15:
+                compliance_requirements.append(f"Source of funds verification for all {incoming_count} incoming transactions")
+            else:
+                compliance_requirements.append("Source of funds verification for all incoming transactions")
+            
+            if sources_count > 5:
+                compliance_requirements.append(f"Beneficial ownership identification for {sources_count} source accounts")
+            else:
+                compliance_requirements.append("Beneficial ownership identification for source accounts")
+            
+            if total_received > 100000:
+                compliance_requirements.append("Potential account freeze per PMLA Section 17 (high-value consolidation)")
+            else:
+                compliance_requirements.append("Enhanced monitoring per PMLA Section 12")
+            
+            typology['compliance_requirements'] = compliance_requirements
+            typology['investigation_priority'] = 'CRITICAL' if total_received > 100000 or incoming_count > 20 else 'HIGH'
         
         # LAYERING HUB: Pass-through/Transit Account
         elif pattern_type == 'layering_hub':
@@ -2122,22 +2482,29 @@ Provide a clear, factual answer based on the evidence:
                 n_results=5
             )
             
-            # Also search SEBI documents specifically for regulatory queries
-            # This ensures we get SEBI regulation content even for account traces
+            # Search SEBI documents for both regulatory and non-regulatory account queries
+            # For non-regulatory queries, we still want to show relevant SEBI regulations in the regulatory context section
             sebi_query_results = []
-            if is_regulatory_query and original_query:
-                # Enhance query to focus on AML/money laundering/fraud regulations for account queries
-                # Extract account number and pattern info for better search
-                enhanced_query = f"{original_query} money laundering fraud anti-money laundering AML suspicious transactions"
+            if original_query or pattern_type != 'normal':
+                # Build query based on account pattern and fraud typology
+                if is_regulatory_query and original_query:
+                    # For regulatory queries, use the original query enhanced
+                    enhanced_query = f"{original_query} money laundering fraud anti-money laundering AML suspicious transactions"
+                else:
+                    # For non-regulatory queries, build query from pattern and fraud type
+                    enhanced_query = f"account {account_id} {pattern_type} pattern money laundering fraud AML suspicious transactions"
+                    if fraud_typology.get('primary_type'):
+                        enhanced_query += f" {fraud_typology['primary_type'].lower()}"
+                
                 if pattern_type != 'normal':
                     enhanced_query += f" {pattern_type} pattern layering structuring"
                 
-                logger.info(f"Searching SEBI documents with enhanced query: {enhanced_query}")
+                logger.info(f"Searching SEBI documents with query: {enhanced_query}")
                 sebi_query_results = await self._query_sebi_collection(
                     enhanced_query,
                     n_results=10
                 )
-                logger.info(f"Found {len(sebi_query_results)} SEBI documents for regulatory query")
+                logger.info(f"Found {len(sebi_query_results)} SEBI documents")
                 
                 # Filter and prioritize documents using intelligent classifier
                 # This replaces brittle keyword-based filtering with smart classification
@@ -2485,12 +2852,98 @@ Focus on actionable intelligence for fraud analysts."""
                         answer_parts.append(f"**⚠️ Historical Context:** Average penalty for similar violations: ₹{avg_penalty:,.0f}")
                         answer_parts.append(f"**Risk Exposure:** Failure to address this pattern may result in penalties of ₹{avg_penalty*0.8:,.0f} - ₹{avg_penalty*1.5:,.0f}\n")
                 answer_parts.append("")
-            elif sebi_cases:
-                # For non-regulatory queries, show brief regulatory context
-                answer_parts.append(f"**REGULATORY CONTEXT:**")
-                answer_parts.append(f"- {len(sebi_cases)} similar SEBI enforcement cases found")
-                answer_parts.append(f"- Pattern matches SEBI violations with 85% confidence")
-                answer_parts.append(f"- Recommended Action: Enhanced monitoring and SAR filing\n")
+            elif sebi_cases or sebi_query_results:
+                # For non-regulatory queries, show brief regulatory context (only if we have SEBI data)
+                # DO NOT repeat fraud intelligence content here - it's already shown above
+                answer_parts.append(f"**📚 REGULATORY CONTEXT & SEBI REGULATIONS:**")
+                
+                # Show SEBI documents if available
+                if sebi_query_results:
+                    answer_parts.append(f"\n**Supporting SEBI Regulation Documents:**\n")
+                    relevant_results = []
+                    irrelevant_keywords = ['employee benefit', 'sweat equity', 'listing obligation', 'lodr',
+                                         'depositor', 'share based', 'disclosure requirement', 'delisting',
+                                         'takeover', 'issue of capital', 'merchant banker', 'depositories and participants']
+                    
+                    for result in sebi_query_results:
+                        doc_text = result.get('document', '').lower()
+                        doc_title = doc_text[:500]
+                        
+                        if any(irr_kw in doc_title for irr_kw in irrelevant_keywords):
+                            continue
+                        
+                        is_relevant = any(kw in doc_text for kw in [
+                            'money laundering', 'aml', 'anti-money', 'fraud', 'suspicious transaction',
+                            'pmla', 'prohibition of fraudulent', 'unfair trade', 'anti-money laundering',
+                            'prohibition of insider trading', 'market manipulation', 'fraudulent'
+                        ])
+                        
+                        if is_relevant:
+                            relevant_results.append(result)
+                    
+                    if relevant_results:
+                        display_results = relevant_results[:3]
+                    else:
+                        display_results = sebi_query_results[:2]
+                    
+                    for i, result in enumerate(display_results, 1):
+                        doc_text = result.get('document', '')
+                        score = result.get('score', 0)
+                        title = self.title_extractor.extract(doc_text)
+                        
+                        # Extract excerpt
+                        excerpt = ""
+                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower():
+                            aml_pos = doc_text.lower().find('money laundering')
+                            if aml_pos > 0:
+                                start = max(0, aml_pos - 50)
+                                while start > 0 and doc_text[start] not in '.!\n':
+                                    start -= 1
+                                if start > 0:
+                                    start += 1
+                                end = min(len(doc_text), start + 300)
+                                for j in range(end, min(len(doc_text), start + 350)):
+                                    if doc_text[j] in '.!\n':
+                                        end = j + 1
+                                        break
+                                excerpt = doc_text[start:end].strip()
+                                excerpt = ' '.join(excerpt.split())
+                        
+                        if not excerpt:
+                            end = min(len(doc_text), 300)
+                            for j in range(end, min(len(doc_text), 350)):
+                                if doc_text[j] in '.!\n':
+                                    end = j + 1
+                                    break
+                            excerpt = doc_text[:end].strip()
+                            excerpt = ' '.join(excerpt.split())
+                        
+                        excerpt = excerpt.replace('  ', ' ').replace('\n', ' ')
+                        excerpt = ' '.join(excerpt.split())
+                        
+                        answer_parts.append(f"{i}. **{title}** (Relevance: {score:.1%})")
+                        if excerpt:
+                            if 'subject:' in doc_text[:500].lower():
+                                subject_match = doc_text[:500].lower().find('subject:')
+                                if subject_match > 0:
+                                    subject_end = doc_text[subject_match:subject_match+200].find('\n')
+                                    if subject_end > 0:
+                                        subject_line = doc_text[subject_match:subject_match+subject_end].strip()
+                                        if subject_line:
+                                            answer_parts.append(f"   {subject_line}")
+                            answer_parts.append(f"   {excerpt}")
+                        answer_parts.append("")
+                
+                # Show SEBI cases if available
+                if sebi_cases:
+                    answer_parts.append(f"\n**📚 Similar SEBI Enforcement Cases:**")
+                    answer_parts.append(f"Found {len(sebi_cases)} enforcement cases with similar patterns:\n")
+                    for idx, case in enumerate(sebi_cases[:3], 1):
+                        case_name = case.get('name', f"Case {idx}")
+                        violation_type = case.get('violation_type', 'Unknown')
+                        answer_parts.append(f"{idx}. **{case_name}** - {violation_type}\n")
+                
+                answer_parts.append("")
             
             # Risk assessment based on pattern, amounts, and account flags
             risk_factors = []
