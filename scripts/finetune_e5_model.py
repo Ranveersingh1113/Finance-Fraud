@@ -188,7 +188,7 @@ class E5FineTuner:
     def train(self,
               epochs: int = 4,
               batch_size: int = 16,
-              warmup_steps: int = 500,
+              warmup_steps: int = None,  # Auto-calculate if None
               max_seq_length: int = 512):
         """
         Train Fin-E5 model.
@@ -257,12 +257,24 @@ class E5FineTuner:
         logger.info(f"  • Loss: MultipleNegativesRankingLoss")
         logger.info(f"  • Max seq length: {max_seq_length}")
         
-        # Estimate training time
+        # Calculate optimal warmup steps (5-10% of total steps)
         steps_per_epoch = len(train_dataloader)
         total_steps = steps_per_epoch * epochs
+        
+        # CRITICAL FIX: Auto-calculate warmup if not provided
+        if warmup_steps is None:
+            warmup_steps = max(100, int(total_steps * 0.1))  # 10% of total, min 100
+            logger.info(f"Auto-calculated warmup steps: {warmup_steps} (10% of total)")
+        elif warmup_steps > total_steps * 0.2:
+            optimal_warmup = max(100, int(total_steps * 0.1))
+            logger.warning(f"⚠️  Warmup steps ({warmup_steps}) is > 20% of total steps ({total_steps})!")
+            logger.warning(f"   This is too high. Using optimal warmup: {optimal_warmup} steps")
+            warmup_steps = optimal_warmup
+        
         logger.info(f"\nTraining steps:")
         logger.info(f"  • Steps per epoch: {steps_per_epoch}")
         logger.info(f"  • Total steps: {total_steps}")
+        logger.info(f"  • Warmup steps: {warmup_steps} ({warmup_steps/total_steps*100:.1f}% of total)")
         logger.info(f"  • Estimated time: {total_steps * 0.5 / 60:.1f}-{total_steps * 1.0 / 60:.1f} minutes")
         
         logger.info(f"\n" + "=" * 70)
@@ -440,8 +452,8 @@ def main():
                        help='Number of epochs (default: 4)')
     parser.add_argument('--batch-size', type=int, default=16,
                        help='Batch size (default: 16 for E5)')
-    parser.add_argument('--warmup-steps', type=int, default=500,
-                       help='Warmup steps (default: 500)')
+    parser.add_argument('--warmup-steps', type=int, default=None,
+                       help='Warmup steps (default: auto-calculated as 10%% of total steps)')
     parser.add_argument('--max-seq-length', type=int, default=512,
                        help='Max sequence length (default: 512)')
     
