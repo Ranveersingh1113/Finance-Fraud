@@ -1,4 +1,5 @@
 {
-    "buildCommand": "cd prd-pathfinder-69 && npm install && npm run build",
-    "outputDirectory": "prd-pathfinder-69/dist"
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist"
   }
