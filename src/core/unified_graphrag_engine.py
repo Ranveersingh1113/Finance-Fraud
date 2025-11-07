@@ -565,7 +565,23 @@ class UnifiedGraphRAGEngine:
                 return cached_result
             
             # Step 1: Validate and preprocess
-            validated_query = await self._validate_and_preprocess(query)
+            try:
+                validated_query = await self._validate_and_preprocess(query)
+            except ValueError as e:
+                # Handle invalid account ID errors
+                if "Invalid account ID" in str(e) or "Account ID" in str(e) or "account ID" in str(e):
+                    error = True
+                    logger.error(f"Invalid account ID in query: {e}")
+                    result = self._create_error_response(
+                        f"**Invalid Account ID**\n\n{str(e)}\n\n**Please provide a valid numeric account ID (e.g., 123, 456).**",
+                        "invalid_account_id"
+                    )
+                    duration = time.time() - start_time
+                    self.metrics.record_query('error', duration, False, error, 0, 0, 0)
+                    return result
+                else:
+                    # Re-raise other validation errors
+                    raise
             
             # Step 2: Create query plan
             query_plan = await self._create_query_plan(
@@ -751,7 +767,7 @@ class UnifiedGraphRAGEngine:
         graph_context, rag_results = await asyncio.gather(*tasks)
         
         # Pattern matching and answer generation
-        patterns = self._match_cross_domain_patterns(graph_context, rag_results)
+        patterns = self._match_cross_domain_patterns(graph_context, rag_results, plan['query'])
         answer = await self._generate_unified_answer(
             plan['query'],
             graph_context,
@@ -848,26 +864,72 @@ class UnifiedGraphRAGEngine:
             
         Returns:
             Account number if found, None otherwise
+            
+        Raises:
+            ValueError: If query mentions an account but the account ID is invalid
         """
         import re
         
         query_lower = query.lower()
         
-        # Pattern 1: "account 507", "account 123", "account_507"
-        patterns = [
-            r'account[_\s]+(\d+)',
-            r'account\s+number\s+(\d+)',
-            r'acc\s+(\d+)',
-            r'account\s+#(\d+)',
-            r'id\s+(\d+)',
+        # Check if query is asking for a specific account
+        account_indicators = [
+            r'account[_\s]+(\w+)',
+            r'account\s+number\s+(\w+)',
+            r'acc\s+(\w+)',
+            r'account\s+#(\w+)',
+            r'account\s+id\s+(\w+)',
+            r'id\s+(\w+)',
+            r'for\s+account\s+(\w+)',
+            r'transactions?\s+for\s+account\s+(\w+)',
+            r'show\s+.*?\s+account\s+(\w+)',
         ]
         
-        for pattern in patterns:
+        # First, check if query mentions an account
+        mentioned_account = None
+        for pattern in account_indicators:
             match = re.search(pattern, query_lower)
             if match:
-                account_num = int(match.group(1))
-                logger.info(f"Extracted account number: {account_num}")
-                return account_num
+                mentioned_account = match.group(1).strip()
+                break
+        
+        # If an account is mentioned, try to validate it
+        if mentioned_account:
+            # Try to extract numeric account ID
+            numeric_patterns = [
+                r'account[_\s]+(\d+)',
+                r'account\s+number\s+(\d+)',
+                r'acc\s+(\d+)',
+                r'account\s+#(\d+)',
+                r'id\s+(\d+)',
+                r'for\s+account\s+(\d+)',
+                r'transactions?\s+for\s+account\s+(\d+)',
+                r'show\s+.*?\s+account\s+(\d+)',
+            ]
+            
+            for pattern in numeric_patterns:
+                match = re.search(pattern, query_lower)
+                if match:
+                    try:
+                        account_num = int(match.group(1))
+                        logger.info(f"Extracted account number: {account_num}")
+                        return account_num
+                    except ValueError:
+                        continue
+            
+            # If account was mentioned but no valid numeric ID found, raise error
+            # Check if the mentioned account is clearly invalid (not a number)
+            if mentioned_account.lower() not in ['all', 'every', 'each', 'any']:
+                try:
+                    # Try to validate using AccountIDValidator
+                    AccountIDValidator.validate(mentioned_account)
+                except ValueError as e:
+                    # Account was mentioned but is invalid
+                    raise ValueError(
+                        f"Invalid account ID '{mentioned_account}'. "
+                        f"Account IDs must be numeric (e.g., 123, 456). "
+                        f"Please provide a valid account ID."
+                    )
         
         return None
     
@@ -1483,24 +1545,47 @@ class UnifiedGraphRAGEngine:
     # Old _dual_rag_retrieval method removed - now using _dual_rag_retrieval_parallel for better performance
     
     def _match_cross_domain_patterns(self, graph_context: Dict,
-                                     rag_results: Dict) -> List[Dict]:
+                                     rag_results: Dict, query: str = "") -> List[Dict]:
         """
         Find patterns that match across SEBI and AMLSim domains.
+        IMPROVED: Only returns matches that are relevant to the query.
         
         Args:
             graph_context: Context from both graphs
             rag_results: RAG retrieval results
+            query: Original user query (for relevance filtering)
             
         Returns:
-            List of cross-domain pattern matches
+            List of cross-domain pattern matches (only relevant ones)
         """
         matches = []
         
         sebi_ctx = graph_context.get('sebi_context', {})
         amlsim_ctx = graph_context.get('amlsim_context', {})
         
+        query_lower = query.lower() if query else ""
+        
+        # Determine which patterns are relevant based on query
+        is_pattern_query = any(term in query_lower for term in [
+            'pattern', 'suspicious', 'fraud', 'transaction', 'account', 'fan-out', 'fan-in'
+        ])
+        is_regulatory_query = any(term in query_lower for term in [
+            'sebi', 'regulation', 'regulatory', 'compliance', 'violation'
+        ])
+        
+        # Only show cross-domain patterns if query is relevant
+        # Skip for pure regulatory queries that don't mention transactions/accounts
+        if is_regulatory_query and not is_pattern_query and 'account' not in query_lower:
+            logger.info("Skipping cross-domain patterns for pure regulatory query")
+            return []
+        
         # Match 1: Fan-out patterns to SEBI fraud violations
-        if 'fan_out_patterns' in amlsim_ctx:
+        # Only if query mentions fan-out, outgoing, transactions, or accounts
+        if 'fan_out_patterns' in amlsim_ctx and (
+            'fan-out' in query_lower or 'fan out' in query_lower or 
+            'outgoing' in query_lower or 'transaction' in query_lower or
+            'account' in query_lower or is_pattern_query
+        ):
             # Get SEBI fraud cases
             sebi_fraud_cases = self._get_similar_cases_fast(
                 "fraud",
@@ -1509,7 +1594,14 @@ class UnifiedGraphRAGEngine:
             
             fan_out_patterns = amlsim_ctx.get('fan_out_patterns', [])
             if fan_out_patterns and sebi_fraud_cases:
-                for pattern in fan_out_patterns[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS]:
+                # Limit to top patterns (highest risk/amount)
+                top_patterns = sorted(
+                    fan_out_patterns[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS * 2],
+                    key=lambda p: (p.get('risk_level') == 'HIGH', p.get('total_amount', 0)),
+                    reverse=True
+                )[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS]
+                
+                for pattern in top_patterns:
                     matches.append({
                         'match_type': 'fan_out_to_fraud',
                         'amlsim_account': pattern['source_account'],
@@ -1523,7 +1615,12 @@ class UnifiedGraphRAGEngine:
                     })
         
         # Match 2: Fan-in patterns to SEBI money laundering
-        if 'fan_in_patterns' in amlsim_ctx:
+        # Only if query mentions fan-in, incoming, transactions, or accounts
+        if 'fan_in_patterns' in amlsim_ctx and (
+            'fan-in' in query_lower or 'fan in' in query_lower or
+            'incoming' in query_lower or 'transaction' in query_lower or
+            'account' in query_lower or is_pattern_query
+        ):
             # Get SEBI money laundering cases
             sebi_ml_cases = self._get_similar_cases_fast(
                 "money_laundering",
@@ -1532,7 +1629,14 @@ class UnifiedGraphRAGEngine:
             
             fan_in_patterns = amlsim_ctx.get('fan_in_patterns', [])
             if fan_in_patterns and sebi_ml_cases:
-                for pattern in fan_in_patterns[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS]:
+                # Limit to top patterns (highest risk/amount)
+                top_patterns = sorted(
+                    fan_in_patterns[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS * 2],
+                    key=lambda p: (p.get('risk_level') == 'HIGH', p.get('total_amount', 0)),
+                    reverse=True
+                )[:RAGConfig.MAX_CROSS_DOMAIN_PATTERNS]
+                
+                for pattern in top_patterns:
                     matches.append({
                         'match_type': 'fan_in_to_money_laundering',
                         'amlsim_account': pattern['destination_account'],
@@ -1546,8 +1650,13 @@ class UnifiedGraphRAGEngine:
                     })
         
         # Match 3: General suspicious account to SEBI violations
+        # Only show if query mentions suspicious, fraud, or patterns
         suspicious_count = amlsim_ctx.get('suspicious_accounts', 0)
-        if suspicious_count > 0:
+        if suspicious_count > 0 and (
+            'suspicious' in query_lower or 'fraud' in query_lower or 
+            'pattern' in query_lower or 'account' in query_lower or
+            is_pattern_query
+        ):
             # Try to find any SEBI violation cases
             for violation in ['fraud', 'money_laundering', 'Unfair Trade Practice']:
                 sebi_cases = self._get_similar_cases_fast(
@@ -1567,7 +1676,7 @@ class UnifiedGraphRAGEngine:
                     })
                     break  # Only add one general match
         
-        logger.info(f"Found {len(matches)} cross-domain pattern matches")
+        logger.info(f"Found {len(matches)} cross-domain pattern matches (query-relevant)")
         return matches
     
     async def _generate_unified_answer(self, query: str,
@@ -2718,6 +2827,9 @@ Focus on actionable intelligence for fraud analysts."""
                     for requirement in fraud_typology['compliance_requirements']:
                         answer_parts.append(f"  ☐ {requirement}")
                     answer_parts.append("")
+                    # Add clear separator before regulatory context section
+                    answer_parts.append("---")
+                    answer_parts.append("")
             
             # Regulatory context section - always show for regulatory queries
             if is_regulatory_query:
@@ -2765,47 +2877,89 @@ Focus on actionable intelligence for fraud analysts."""
                         # This replaces 116 lines of complex regex/heuristic logic
                         title = self.title_extractor.extract(doc_text)
                         
-                        # Extract relevant excerpt (prefer AML/money laundering sections)
-                        # Improved: Find sentence boundaries to avoid cutting mid-sentence
+                        # Extract relevant excerpt using improved method - ensure complete sentences
                         excerpt = ""
-                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower():
+                        
+                        # Try to find AML/money laundering relevant section first
+                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower() or 'suspicious transaction' in doc_text.lower():
+                            # Find the most relevant section
                             aml_pos = doc_text.lower().find('money laundering')
+                            if aml_pos < 0:
+                                aml_pos = doc_text.lower().find('suspicious transaction')
+                            if aml_pos < 0:
+                                aml_pos = doc_text.lower().find('aml')
+                            
                             if aml_pos > 0:
-                                start = max(0, aml_pos - 50)
-                                # Find sentence start (look for period, newline, or start of text)
-                                while start > 0 and doc_text[start] not in '.!\n':
-                                    start -= 1
-                                if start > 0:
-                                    start += 1  # Move past the period/newline
+                                # Find sentence start - go back further to ensure we get complete context
+                                start = aml_pos
+                                # Look backwards for sentence boundary (period, exclamation, question mark, or newline)
+                                for i in range(aml_pos, max(0, aml_pos - 300), -1):
+                                    if doc_text[i] in '.!?\n':
+                                        start = i + 1
+                                        # Skip whitespace after sentence boundary
+                                        while start < len(doc_text) and doc_text[start] in ' \t\n':
+                                            start += 1
+                                        break
+                                else:
+                                    # No sentence boundary found, start from beginning or reasonable point
+                                    start = max(0, aml_pos - 150)
                                 
-                                # Extract up to 300 chars, but try to end at sentence boundary
-                                end = min(len(doc_text), start + 300)
-                                # Try to find sentence end
-                                for j in range(end, min(len(doc_text), start + 350)):
-                                    if doc_text[j] in '.!\n':
+                                # Extract up to 500 chars, ending at sentence boundary
+                                end = min(len(doc_text), start + 500)
+                                # Look forward for sentence end
+                                for j in range(end, min(len(doc_text), start + 600)):
+                                    if doc_text[j] in '.!?\n':
                                         end = j + 1
                                         break
                                 
                                 excerpt = doc_text[start:end].strip()
-                                # Clean up extra whitespace
-                                excerpt = ' '.join(excerpt.split())
+                        else:
+                            # Use key sentence extraction for better quality excerpts
+                            excerpt = self._extract_key_sentences(doc_text, max_sentences=3)
                         
-                        if not excerpt:
-                            # Extract first 300 chars, but try to end at sentence boundary
-                            end = min(len(doc_text), 300)
-                            for j in range(end, min(len(doc_text), 350)):
-                                if doc_text[j] in '.!\n':
+                        # Fallback to first 500 chars if no good excerpt found
+                        if not excerpt or len(excerpt) < 50:
+                            # Start from beginning, find first complete sentence
+                            start = 0
+                            # Skip any leading whitespace or metadata
+                            while start < len(doc_text) and doc_text[start] in ' \t\n':
+                                start += 1
+                            
+                            end = min(len(doc_text), start + 500)
+                            # Find sentence end
+                            for j in range(end, min(len(doc_text), start + 600)):
+                                if doc_text[j] in '.!?\n':
                                     end = j + 1
                                     break
-                            excerpt = doc_text[:end].strip()
-                            # Clean up extra whitespace
-                            excerpt = ' '.join(excerpt.split())
+                            excerpt = doc_text[start:end].strip()
                         
-                        # Clean up the excerpt - remove weird spacing issues
+                        # Clean up excerpt - ensure it starts and ends with complete sentences
+                        excerpt = ' '.join(excerpt.split())  # Normalize whitespace
                         excerpt = excerpt.replace('  ', ' ')  # Remove double spaces
-                        excerpt = excerpt.replace(' - ', ' - ')  # Normalize dashes
                         excerpt = excerpt.replace('\n', ' ')  # Remove newlines
-                        excerpt = ' '.join(excerpt.split())  # Normalize all whitespace
+                        
+                        # Ensure excerpt doesn't start mid-sentence (check first char)
+                        if excerpt and excerpt[0].islower():
+                            # Find first sentence start
+                            first_cap = -1
+                            for i, char in enumerate(excerpt):
+                                if char.isupper() and (i == 0 or excerpt[i-1] in '.!? \n'):
+                                    first_cap = i
+                                    break
+                            if first_cap > 0:
+                                excerpt = excerpt[first_cap:]
+                        
+                        # Truncate if too long, but try to end at sentence boundary
+                        if len(excerpt) > 500:
+                            truncated = excerpt[:500]
+                            # Try to find sentence end
+                            for j in range(500, min(len(excerpt), 600)):
+                                if excerpt[j] in '.!?':
+                                    truncated = excerpt[:j+1]
+                                    break
+                            excerpt = truncated
+                            if len(excerpt) < len(doc_text):
+                                excerpt += "..."
                         
                         answer_parts.append(f"{i}. **{title}** (Relevance: {score:.1%})")
                         if excerpt:
@@ -2855,6 +3009,10 @@ Focus on actionable intelligence for fraud analysts."""
             elif sebi_cases or sebi_query_results:
                 # For non-regulatory queries, show brief regulatory context (only if we have SEBI data)
                 # DO NOT repeat fraud intelligence content here - it's already shown above
+                # Add clear separator if fraud intelligence section was shown
+                if not is_regulatory_query:
+                    answer_parts.append("---")
+                    answer_parts.append("")
                 answer_parts.append(f"**📚 REGULATORY CONTEXT & SEBI REGULATIONS:**")
                 
                 # Show SEBI documents if available
@@ -2891,38 +3049,92 @@ Focus on actionable intelligence for fraud analysts."""
                         score = result.get('score', 0)
                         title = self.title_extractor.extract(doc_text)
                         
-                        # Extract excerpt
+                        # Extract excerpt using improved method - ensure complete sentences
                         excerpt = ""
-                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower():
+                        
+                        # Try to find AML/money laundering relevant section first
+                        if 'money laundering' in doc_text.lower() or 'aml' in doc_text.lower() or 'suspicious transaction' in doc_text.lower():
+                            # Find the most relevant section
                             aml_pos = doc_text.lower().find('money laundering')
+                            if aml_pos < 0:
+                                aml_pos = doc_text.lower().find('suspicious transaction')
+                            if aml_pos < 0:
+                                aml_pos = doc_text.lower().find('aml')
+                            
                             if aml_pos > 0:
-                                start = max(0, aml_pos - 50)
-                                while start > 0 and doc_text[start] not in '.!\n':
-                                    start -= 1
-                                if start > 0:
-                                    start += 1
-                                end = min(len(doc_text), start + 300)
-                                for j in range(end, min(len(doc_text), start + 350)):
-                                    if doc_text[j] in '.!\n':
+                                # Find sentence start - go back further to ensure we get complete context
+                                start = aml_pos
+                                # Look backwards for sentence boundary (period, exclamation, question mark, or newline)
+                                for i in range(aml_pos, max(0, aml_pos - 300), -1):
+                                    if doc_text[i] in '.!?\n':
+                                        start = i + 1
+                                        # Skip whitespace after sentence boundary
+                                        while start < len(doc_text) and doc_text[start] in ' \t\n':
+                                            start += 1
+                                        break
+                                else:
+                                    # No sentence boundary found, start from beginning or reasonable point
+                                    start = max(0, aml_pos - 150)
+                                
+                                # Extract up to 500 chars, ending at sentence boundary
+                                end = min(len(doc_text), start + 500)
+                                # Look forward for sentence end
+                                for j in range(end, min(len(doc_text), start + 600)):
+                                    if doc_text[j] in '.!?\n':
                                         end = j + 1
                                         break
+                                
                                 excerpt = doc_text[start:end].strip()
-                                excerpt = ' '.join(excerpt.split())
+                        else:
+                            # Use key sentence extraction for better quality excerpts
+                            excerpt = self._extract_key_sentences(doc_text, max_sentences=3)
                         
-                        if not excerpt:
-                            end = min(len(doc_text), 300)
-                            for j in range(end, min(len(doc_text), 350)):
-                                if doc_text[j] in '.!\n':
+                        # Fallback to first 500 chars if no good excerpt found
+                        if not excerpt or len(excerpt) < 50:
+                            # Start from beginning, find first complete sentence
+                            start = 0
+                            # Skip any leading whitespace or metadata
+                            while start < len(doc_text) and doc_text[start] in ' \t\n':
+                                start += 1
+                            
+                            end = min(len(doc_text), start + 500)
+                            # Find sentence end
+                            for j in range(end, min(len(doc_text), start + 600)):
+                                if doc_text[j] in '.!?\n':
                                     end = j + 1
                                     break
-                            excerpt = doc_text[:end].strip()
-                            excerpt = ' '.join(excerpt.split())
+                            excerpt = doc_text[start:end].strip()
                         
-                        excerpt = excerpt.replace('  ', ' ').replace('\n', ' ')
-                        excerpt = ' '.join(excerpt.split())
+                        # Clean up excerpt - ensure it starts and ends with complete sentences
+                        excerpt = ' '.join(excerpt.split())  # Normalize whitespace
+                        excerpt = excerpt.replace('  ', ' ')  # Remove double spaces
+                        
+                        # Ensure excerpt doesn't start mid-sentence (check first char)
+                        if excerpt and excerpt[0].islower():
+                            # Find first sentence start
+                            first_cap = -1
+                            for i, char in enumerate(excerpt):
+                                if char.isupper() and (i == 0 or excerpt[i-1] in '.!? \n'):
+                                    first_cap = i
+                                    break
+                            if first_cap > 0:
+                                excerpt = excerpt[first_cap:]
+                        
+                        # Truncate if too long, but try to end at sentence boundary
+                        if len(excerpt) > 500:
+                            truncated = excerpt[:500]
+                            # Try to find sentence end
+                            for j in range(500, min(len(excerpt), 600)):
+                                if excerpt[j] in '.!?':
+                                    truncated = excerpt[:j+1]
+                                    break
+                            excerpt = truncated
+                            if len(excerpt) < len(doc_text):
+                                excerpt += "..."
                         
                         answer_parts.append(f"{i}. **{title}** (Relevance: {score:.1%})")
                         if excerpt:
+                            # Add subject line if available
                             if 'subject:' in doc_text[:500].lower():
                                 subject_match = doc_text[:500].lower().find('subject:')
                                 if subject_match > 0:
@@ -2931,6 +3143,7 @@ Focus on actionable intelligence for fraud analysts."""
                                         subject_line = doc_text[subject_match:subject_match+subject_end].strip()
                                         if subject_line:
                                             answer_parts.append(f"   {subject_line}")
+                            
                             answer_parts.append(f"   {excerpt}")
                         answer_parts.append("")
                 

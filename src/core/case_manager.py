@@ -6,6 +6,7 @@ import sqlite3
 import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from datetime import time as datetime_time
 from pathlib import Path
 import logging
 
@@ -231,6 +232,7 @@ class CaseManager:
                     """)
                 
                 cases = []
+                case_ids = []
                 for row in cursor.fetchall():
                     cases.append({
                         'case_id': row[0],
@@ -242,7 +244,25 @@ class CaseManager:
                         'created_at': row[6],
                         'updated_at': row[7]
                     })
-                
+                    case_ids.append(row[0])
+
+                query_counts: Dict[str, int] = {}
+                if case_ids:
+                    placeholders = ",".join(["?"] * len(case_ids))
+                    cursor.execute(
+                        f"""
+                            SELECT case_id, COUNT(*) as query_count
+                            FROM case_queries
+                            WHERE case_id IN ({placeholders})
+                            GROUP BY case_id
+                        """,
+                        case_ids,
+                    )
+                    query_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+                for case in cases:
+                    case['query_count'] = query_counts.get(case['case_id'], 0)
+
                 return cases
                 
         except Exception as e:
@@ -498,6 +518,14 @@ class CaseManager:
                 # Total queries
                 cursor.execute("SELECT COUNT(*) FROM case_queries")
                 total_queries = cursor.fetchone()[0]
+
+                # Today's queries (from midnight)
+                today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                cursor.execute(
+                    "SELECT COUNT(*) FROM case_queries WHERE timestamp >= ?",
+                    (today_start.isoformat(),)
+                )
+                queries_today = cursor.fetchone()[0]
                 
                 # Cases by priority
                 cursor.execute("""
@@ -515,6 +543,7 @@ class CaseManager:
                     'active_cases': active_cases,
                     'closed_cases': total_cases - active_cases,
                     'total_queries': total_queries,
+                    'queries_today': queries_today,
                     'average_queries_per_case': avg_queries,
                     'priority_breakdown': priority_breakdown
                 }
