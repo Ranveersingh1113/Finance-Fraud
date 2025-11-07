@@ -6,10 +6,15 @@ import { Switch } from "@/components/ui/switch";
 import { ChevronRight, Bell, Lock, Moon, Download, HelpCircle, LogOut, Loader2 } from "lucide-react";
 import { useSystemStats } from "@/hooks/useStats";
 import { useUserProfile } from "@/hooks/useUser";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { data: stats, isLoading: statsLoading } = useSystemStats();
-  const { data: user, isLoading: userLoading } = useUserProfile();
+  const { data: userProfile, isLoading: userLoading } = useUserProfile();
+  const { user: authUser, logout } = useAuth();
+  const user = userProfile || authUser;
   
   const caseStats = stats?.rag_engine_stats?.case_statistics;
   const totalCases = caseStats?.total_cases || 0;
@@ -140,7 +145,15 @@ export default function Profile() {
         </section>
 
         {/* Logout */}
-        <Button variant="destructive" className="w-full" size="lg">
+        <Button
+          variant="destructive"
+          className="w-full"
+          size="lg"
+          onClick={() => {
+            logout();
+            navigate("/login", { replace: true });
+          }}
+        >
           <LogOut className="h-5 w-5 mr-2" />
           Logout
         </Button>

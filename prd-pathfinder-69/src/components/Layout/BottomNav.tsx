@@ -1,9 +1,10 @@
 import { Home, Folder, Search, Bell, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const navItems = [
-  { icon: Home, label: "Home", path: "/" },
+  { icon: Home, label: "Home", path: "/dashboard" },
   { icon: Folder, label: "Cases", path: "/cases" },
   { icon: Search, label: "Search", path: "/search" },
   { icon: Bell, label: "Alerts", path: "/alerts" },
@@ -12,12 +13,19 @@ const navItems = [
 
 export const BottomNav = () => {
   const location = useLocation();
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated || location.pathname === "/" || location.pathname === "/login") {
+    return null;
+  }
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 safe-area-bottom">
       <div className="flex justify-around items-center h-16 max-w-screen-xl mx-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== "/dashboard" && location.pathname.startsWith(`${item.path}/`));
           const Icon = item.icon;
           
           return (

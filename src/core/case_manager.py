@@ -515,14 +515,23 @@ class CaseManager:
                 cursor.execute("SELECT COUNT(*) FROM cases WHERE status = 'active'")
                 active_cases = cursor.fetchone()[0]
                 
-                # Total queries
-                cursor.execute("SELECT COUNT(*) FROM case_queries")
+                # Total queries - only count queries for existing cases
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM case_queries cq
+                    INNER JOIN cases c ON cq.case_id = c.case_id
+                """)
                 total_queries = cursor.fetchone()[0]
 
-                # Today's queries (from midnight)
+                # Today's queries (from midnight) - only count queries for existing cases
                 today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                 cursor.execute(
-                    "SELECT COUNT(*) FROM case_queries WHERE timestamp >= ?",
+                    """
+                    SELECT COUNT(*) 
+                    FROM case_queries cq
+                    INNER JOIN cases c ON cq.case_id = c.case_id
+                    WHERE cq.timestamp >= ?
+                    """,
                     (today_start.isoformat(),)
                 )
                 queries_today = cursor.fetchone()[0]
