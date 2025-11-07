@@ -69,6 +69,7 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey,
+          'ngrok-skip-browser-warning': 'true',
           ...options.headers,
         },
         signal: controller.signal,
@@ -85,7 +86,22 @@ class ApiClient {
         } as ApiError;
       }
 
-      return await response.json();
+      // Handle empty responses (e.g. 204) or non-JSON payloads gracefully
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
+
+      if (response.status === 204 || response.status === 205) {
+        return undefined as T;
+      }
+
+      const text = await response.text();
+      throw {
+        message: 'Unexpected response format from API.',
+        status: response.status,
+        detail: text?.slice(0, 500),
+      } as ApiError;
     } catch (error: any) {
       clearTimeout(timeoutId);
       
