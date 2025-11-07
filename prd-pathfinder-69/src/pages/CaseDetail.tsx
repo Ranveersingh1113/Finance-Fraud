@@ -359,7 +359,7 @@ export default function CaseDetail() {
                       </div>
                       
                       {/* Use formatted response component */}
-                      <AnalysisResponse answer={query.answer} />
+                      <AnalysisResponse answer={query.answer ?? ""} />
                       
                       <Separator className="my-3" />
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">

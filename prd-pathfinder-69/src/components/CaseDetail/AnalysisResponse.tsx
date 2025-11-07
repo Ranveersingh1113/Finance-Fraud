@@ -33,12 +33,17 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 
 interface AnalysisResponseProps {
-  answer: string;
+  answer: string | null | undefined;
 }
 
 export function AnalysisResponse({ answer }: AnalysisResponseProps) {
+  const safeAnswer = typeof answer === "string" ? answer : "";
+
   // Parse the structured response - handle both formatted and plain text
   const parseResponse = (text: string) => {
+    if (!text) {
+      return { plainText: "" };
+    }
     // If text doesn't contain structured data, return plain text
     if (!text.includes('ACCOUNT PROFILE') && !text.includes('MONEY FLOW') && !text.includes('ACCOUNT ID:')) {
       return { plainText: text };
@@ -323,8 +328,34 @@ export function AnalysisResponse({ answer }: AnalysisResponseProps) {
   };
 
   const navigate = useNavigate();
-  const cleanedAnswer = cleanAnswer(answer);
-  const sections = parseResponse(cleanedAnswer);
+  const cleanedAnswer = cleanAnswer(safeAnswer);
+  const parsedSections = parseResponse(cleanedAnswer);
+
+  const sections = {
+    plainText: null,
+    accountProfile: null,
+    transactionFlow: null,
+    topOutgoing: [] as Array<{ amount: string | undefined; account: string | undefined }>,
+    topIncoming: [] as Array<{ amount: string | undefined; account: string | undefined }>,
+    fraudTypology: null as null | {
+      fraudType?: string;
+      mlPhase?: string;
+      priority?: string;
+      indicators?: string[];
+    },
+    regulatoryViolations: [] as string[],
+    requiredActions: [] as Array<{ action?: string; deadline?: string; priority?: string }>,
+    complianceChecklist: [] as string[],
+    casePrecedents: [] as Array<{ name: string; violation: string; outcome: string }>,
+    regulatoryContext: null as string | null,
+    riskAssessment: null as null | {
+      level?: string;
+      score?: string;
+      factors?: string;
+      sarFiling?: string;
+    },
+    ...parsedSections,
+  };
   
   // Extract account IDs for clickable links
   const extractAccountIds = (text: string): string[] => {
@@ -820,10 +851,10 @@ export function AnalysisResponse({ answer }: AnalysisResponseProps) {
 
       {/* Regulatory Context - Always show for regulatory queries */}
       {(sections.regulatoryContext || 
-        answer.includes('SEBI REGULATIONS') || 
-        answer.includes('REGULATORY CONTEXT') ||
-        answer.includes('SEBI regulations') ||
-        answer.includes('regulation') && answer.includes('account')) && (
+        safeAnswer.includes('SEBI REGULATIONS') || 
+        safeAnswer.includes('REGULATORY CONTEXT') ||
+        safeAnswer.includes('SEBI regulations') ||
+        safeAnswer.includes('regulation') && safeAnswer.includes('account')) && (
         <Accordion type="single" collapsible className="w-full" defaultValue="regulatory">
           <AccordionItem value="regulatory">
             <AccordionTrigger>
@@ -859,8 +890,8 @@ export function AnalysisResponse({ answer }: AnalysisResponseProps) {
                       Regulatory information is included in the analysis above. Below is the full answer text:
                     </p>
                     <p className="whitespace-pre-wrap bg-background p-3 rounded border">
-                      {answer.substring(0, 2000)}
-                      {answer.length > 2000 ? '...' : ''}
+                      {safeAnswer.substring(0, 2000)}
+                      {safeAnswer.length > 2000 ? '...' : ''}
                     </p>
                   </div>
                 )}
