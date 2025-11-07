@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     
     # Ollama Configuration
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
-    ollama_model: str = Field(default="llama3.1:8b", env="OLLAMA_MODEL")
+    ollama_model: str = Field(default="llama3.1:8b-instruct-q4_0", env="OLLAMA_MODEL")
     
     # Case Management
     cases_db_path: str = Field(
