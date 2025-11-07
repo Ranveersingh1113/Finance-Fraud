@@ -11,6 +11,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!prd-pathfinder-69/src/lib/
 lib64/
 parts/
 sdist/
