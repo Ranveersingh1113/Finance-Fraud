@@ -89,8 +89,13 @@ class AdvancedRAGEngine:
         self.persist_directory = persist_directory
         
         # Initialize device
-        self.device = get_device_string()
-        logger.info(f"Advanced RAG Engine initializing on device: {self.device}")
+        configured_device = getattr(settings, "embedding_device", None)
+        if configured_device and configured_device.lower() not in {"auto", ""}:
+            self.device = configured_device
+            logger.info(f"Advanced RAG Engine embedding device override: {self.device}")
+        else:
+            self.device = get_device_string()
+            logger.info(f"Advanced RAG Engine initializing on device: {self.device}")
         
         # Log GPU info if available
         device_manager.log_device_info()

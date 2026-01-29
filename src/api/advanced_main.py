@@ -68,13 +68,34 @@ app = FastAPI(
 
 # Add CORS middleware
 # Parse CORS origins from environment variable (comma-separated or "*" for all)
-cors_origins_list = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
+# ALWAYS include localhost origins for development, regardless of env var
+# This handles the case where system env vars are set for production but local dev needs to work
+localhost_origins = [
+    "http://localhost:8080",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
+if settings.cors_origins == "*":
+    cors_origins_list = localhost_origins
+else:
+    # Parse configured origins and add localhost origins
+    configured_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+    # Combine and deduplicate
+    cors_origins_list = list(set(configured_origins + localhost_origins))
+
+logger.info(f"CORS origins configured: {cors_origins_list}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Rate limiting (if slowapi is installed)

@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         default="ms-marco-MiniLM-L-12-v2",
         env="RERANKER_MODEL"
     )
+    embedding_device: str = Field(
+        default="cpu",
+        env="EMBEDDING_DEVICE"
+    )
     
     # Ollama Configuration
     ollama_host: str = Field(default="http://localhost:11434", env="OLLAMA_HOST")
